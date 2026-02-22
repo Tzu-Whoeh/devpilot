@@ -52,18 +52,29 @@ const ChatPage = {
     this._loadState();
     await this._loadAgents();
     this._initialized = true;
-    Shell.renderChatTree();
   },
 
   // ══════════════════════════════════════════════════════
-  //  RENDER (called when navigating to /chat)
+  //  RENDER (called when navigating to /chat) — 三栏布局 v2.0
   // ══════════════════════════════════════════════════════
   async render() {
     Shell.setBreadcrumb([{ label: '💬 AI 对话', path: '/chat' }]);
     await this.init();
 
+    // 左侧面板：AI岗位 (RolePanel)
+    const leftPanel = RolePanel.renderHTML((trigger) => {
+      // 双击职责 → 填充输入框
+      const input = document.getElementById('chatInput');
+      if (input) { input.value = trigger + ' '; input.focus(); }
+    });
+
+    // 右侧面板：交互记录 (InteractionLog)
+    InteractionLog.clear();
+    const rightPanel = InteractionLog.renderHTML();
+
     Shell.setContent(`
-      <div class="chat-page">
+      <div class="chat-page chat-three-col">
+        ${leftPanel}
         <div class="chat-main" id="chatMain">
           <div class="chat-drag-overlay" id="chatDragOverlay">📎 拖放文件到此处</div>
           <div class="chat-messages" id="chatMsgs"></div>
@@ -73,7 +84,7 @@ const ChatPage = {
               <div class="chat-input-wrap">
                 <button class="chat-attach-btn" onclick="document.getElementById('chatFileInput').click()" title="上传文件/图片">📎</button>
                 <input type="file" id="chatFileInput" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.html" style="display:none" onchange="ChatPage.handleFiles(this.files)">
-                <textarea id="chatInput" placeholder="输入消息..." rows="1"
+                <textarea id="chatInput" placeholder="输入消息，或双击左侧职责快速填充..." rows="1"
                   onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ChatPage.send()}"
                   oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,160)+'px'"></textarea>
                 <button class="chat-send-btn" id="chatSendBtn" onclick="ChatPage.send()" title="发送">
@@ -83,11 +94,11 @@ const ChatPage = {
             </div>
           </div>
         </div>
+        ${rightPanel}
       </div>
     `);
     this._bindDragDrop();
     this._renderMessages();
-    Shell.renderChatTree();
     if (this._activeSession) {
       setTimeout(() => document.getElementById('chatInput')?.focus(), 50);
     }
@@ -110,7 +121,6 @@ const ChatPage = {
   async refreshAgents() {
     try {
       this._agents = await API.getAgents();
-      Shell.renderChatTree();
       if (document.getElementById('chatAgentPicker')) this.showAgentPicker();
       Shell.toast('Agent 列表已刷新', 'success');
     } catch (e) {
@@ -195,7 +205,7 @@ const ChatPage = {
       return;
     }
     this._expandedAgents[agentId] = !this._expandedAgents[agentId];
-    Shell.renderChatTree();
+    this._saveState();
   },
 
   // ══════════════════════════════════════════════════════
@@ -251,7 +261,6 @@ const ChatPage = {
       Router.navigate('/chat');
     } else {
       this._renderMessages();
-      Shell.renderChatTree();
       this._renderAttachments();
       setTimeout(() => document.getElementById('chatInput')?.focus(), 50);
     }
@@ -263,7 +272,6 @@ const ChatPage = {
       this._activeSession = null;
       if (Router.current === '/chat') this._renderMessages();
     }
-    Shell.renderChatTree();
     this._saveState();
   },
 
@@ -350,9 +358,11 @@ const ChatPage = {
 
     this._abortCtrl = new AbortController();
     let fullText = '';
+    const stepIdx = InteractionLog.addStep({ prompt: text || '[附件]', roleName: session.agentId });
 
     const onDelta = (delta) => {
       fullText += delta;
+      InteractionLog.updateStepStream(stepIdx, delta);
       const target = document.getElementById('chatStreamTarget');
       if (target) { target.innerHTML = this._renderMarkdown(fullText); target.classList.remove('typing-cursor'); }
       this._scrollBottom();
@@ -362,6 +372,7 @@ const ChatPage = {
       const target = document.getElementById('chatStreamTarget');
       if (target) { target.removeAttribute('id'); target.classList.remove('typing-cursor'); target.innerHTML = this._renderMarkdown(fullText); }
       session.messages.push({ role: 'ai', text: fullText, time: new Date().toISOString() });
+      InteractionLog.completeStep(stepIdx, { response: fullText, status: 'done' });
       this._saveState();
       this._sending = false;
       this._abortCtrl = null;
@@ -376,8 +387,12 @@ const ChatPage = {
           <div class="chat-full-bubble">${this._renderMarkdown(fullText)}<br><em style="color:var(--warning)">⚠ 回复不完整</em></div>
         </div>`);
         session.messages.push({ role: 'ai', text: fullText + '\n\n⚠ 回复不完整', time: new Date().toISOString() });
+        InteractionLog.completeStep(stepIdx, { response: fullText, status: 'error' });
       } else if (err?.name !== 'AbortError') {
         Shell.toast('AI 回复失败: ' + err.message, 'error');
+        InteractionLog.completeStep(stepIdx, { status: 'error' });
+      } else {
+        InteractionLog.completeStep(stepIdx, { response: fullText, status: 'stopped' });
       }
       this._saveState();
       this._sending = false;
@@ -433,7 +448,6 @@ const ChatPage = {
     if (this._greetings.has(n)) return;
     session.title = text.length > 20 ? text.slice(0, 20) + '…' : text;
     session.titleLocked = true;
-    Shell.renderChatTree();
     this._saveState();
   },
 

@@ -1,8 +1,14 @@
-/* ═══ Project Workspace — Phase Strip + Detail Panel ═══ */
+/* ═══ Project Workspace v4.0 — Vertical Phase Nav + SSE Chat (D5/D8) ═══
+ *
+ * Layout: [Left: Phase Nav] [Right: Detail Panel]
+ * Chat: SSE streaming via API.streamChat (replaces _typeText simulation)
+ * Phase status: 5-state machine (pending/ai_working/awaiting_approval/approved/rejected)
+ */
 const WorkspacePage = {
   _project: null,
   _selectedPhaseId: null,
   _chatSending: false,
+  _abortCtrl: null,
 
   async render(params) {
     try { this._project = await API.getProject(params.id); }
@@ -28,65 +34,60 @@ const WorkspacePage = {
     const p = this._project;
     const sel = p.phases.find(ph => ph.id === this._selectedPhaseId) || p.phases[p.current_phase_index];
     Shell.setContent(`
-      <div class="page-container">
-        <div class="ws-header">
-          <h1>${p.type_icon} ${_esc(p.name)} <span class="ws-header-type">${p.type_name}</span></h1>
-          <button class="btn btn-ghost btn-sm" onclick="Router.navigate('/')">← 返回总览</button>
-        </div>
-        <div class="phase-strip">${p.phases.map((ph, i) => this._renderPhaseCard(ph, i, p)).join('')}</div>
-        <div class="ws-detail">${this._renderDetail(sel, p)}</div>
+      <div class="ws-layout">
+        <aside class="ws-phase-nav">
+          <div class="ws-nav-header">
+            <button class="btn btn-ghost btn-sm" onclick="Router.navigate('/')">← 返回</button>
+            <h2>${p.type_icon} ${_esc(p.name)}</h2>
+            <span class="ws-nav-type">${p.type_name}</span>
+          </div>
+          <div class="ws-nav-list">${p.phases.map((ph, i) => this._renderPhaseNav(ph, i, p)).join('')}</div>
+        </aside>
+        <main class="ws-detail">${this._renderDetail(sel, p)}</main>
       </div>
     `);
   },
 
-  _renderPhaseCard(ph, i, p) {
+  /** Vertical phase navigation item */
+  _renderPhaseNav(ph, i, p) {
     const isCurrent = i === p.current_phase_index;
     const isSelected = ph.id === this._selectedPhaseId;
-    let cls = 'phase-card';
-    if (ph.status === 'approved') cls += ' approved';
-    else if (ph.status === 'ai_working') cls += ' ai-working';
-    else if (ph.status === 'awaiting_approval') cls += ' awaiting-approval';
-    else if (ph.status === 'rejected') cls += ' rejected';
-    else if (isCurrent && ph.status === 'pending') cls += ' current-pending';
-    else cls += ' pending';
+    const statusIcon = { pending:'⬜', ai_working:'🤖', awaiting_approval:'⏳', approved:'✅', rejected:'↩️' }[ph.status] || '⬜';
+    let cls = 'ws-nav-item';
     if (isSelected) cls += ' selected';
-
-    const statusMap = {
-      pending: isCurrent ? '⬜ 待开始' : '待前序完成',
-      ai_working: '🤖 生成中...',
-      awaiting_approval: '⏳ 待审批',
-      approved: '✅ ' + (ph.completed_at ? new Date(ph.completed_at).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}) + '完成' : '已完成'),
-      rejected: '↩️ 已驳回'
-    };
-
-    let action = '';
-    if (isCurrent && ph.status === 'pending') action = '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();WorkspacePage.triggerPhase(\''+ph.id+'\')">▶ 开始</button>';
-    else if (isCurrent && ph.status === 'rejected') action = '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();WorkspacePage.triggerPhase(\''+ph.id+'\')">▶ 重新开始</button>';
-    else if (ph.status === 'approved') action = '<span style="font-size:11px;color:var(--text-muted)">查看</span>';
+    if (ph.status === 'approved') cls += ' done';
+    else if (ph.status === 'ai_working') cls += ' working';
+    else if (ph.status === 'awaiting_approval') cls += ' awaiting';
+    else if (ph.status === 'rejected') cls += ' rejected';
+    else if (isCurrent && ph.status === 'pending') cls += ' current';
 
     return `
       <div class="${cls}" onclick="WorkspacePage.selectPhase('${ph.id}')">
-        <div class="ph-icon">${ph.icon}</div>
-        <div class="ph-name">${ph.name}</div>
-        <div class="ph-role">${ph.role}</div>
-        <div class="ph-status">${statusMap[ph.status] || ph.status}</div>
-        <div class="ph-action">${action}</div>
+        <span class="ws-nav-num">${i + 1}</span>
+        <span class="ws-nav-icon">${ph.icon}</span>
+        <div class="ws-nav-info">
+          <div class="ws-nav-name">${ph.name}</div>
+          <div class="ws-nav-status">${statusIcon} ${this._statusText(ph.status, isCurrent)}</div>
+        </div>
       </div>
-      ${i < p.phases.length - 1 ? '<div class="phase-connector">→</div>' : ''}
     `;
+  },
+
+  _statusText(status, isCurrent) {
+    const map = { pending: isCurrent ? '待开始' : '待前序完成', ai_working:'AI 工作中', awaiting_approval:'待审批', approved:'已完成', rejected:'已驳回' };
+    return map[status] || status;
   },
 
   _renderDetail(phase, p) {
     if (!phase) return '';
     const isCurrent = p.phases.indexOf(phase) === p.current_phase_index;
 
-    // Header
     let html = `<div class="ws-detail-header">
       <div class="ws-detail-title">${phase.icon} ${phase.name}</div>
       <div class="ws-detail-meta">AI 角色: @${phase.role}</div>
     </div>`;
 
-    // AI Working state
+    // AI Working
     if (phase.status === 'ai_working') {
       html += `<div class="ws-working">
         <div class="ws-working-anim"></div>
@@ -96,7 +97,7 @@ const WorkspacePage = {
       return html;
     }
 
-    // Pending state
+    // Pending
     if (phase.status === 'pending') {
       if (isCurrent) {
         html += `<div style="padding:var(--space-2xl);text-align:center">
@@ -113,7 +114,7 @@ const WorkspacePage = {
       return html;
     }
 
-    // Rejected state
+    // Rejected
     if (phase.status === 'rejected') {
       html += `<div style="padding:var(--space-2xl);text-align:center">
         <div style="font-size:48px;margin-bottom:var(--space-md)">↩️</div>
@@ -123,7 +124,7 @@ const WorkspacePage = {
       return html;
     }
 
-    // AI Output (for awaiting_approval and approved)
+    // AI Output
     if (phase.ai_output) {
       html += `<div class="ws-output">
         <div class="ws-output-card">
@@ -136,7 +137,7 @@ const WorkspacePage = {
       </div>`;
     }
 
-    // Action bar (awaiting_approval only)
+    // Action bar
     if (phase.status === 'awaiting_approval') {
       html += `<div class="ws-actions">
         <button class="btn btn-success" onclick="WorkspacePage.approve('${phase.id}')">✅ 审批通过</button>
@@ -145,7 +146,6 @@ const WorkspacePage = {
       </div>`;
     }
 
-    // Completed badge
     if (phase.status === 'approved') {
       html += `<div style="padding:var(--space-sm) var(--space-lg)">
         <div class="ws-completed-badge">✅ 此阶段已审批通过</div>
@@ -153,9 +153,7 @@ const WorkspacePage = {
       </div>`;
     }
 
-    // Chat section
     html += this._renderChat(phase);
-
     return html;
   },
 
@@ -182,11 +180,10 @@ const WorkspacePage = {
     }
     html += '</div>';
 
-    // Input (only for active phases)
     if (!isReadonly && (phase.status === 'awaiting_approval' || phase.status === 'ai_working')) {
       html += `<div class="ws-chat-input">
         <textarea id="wsChatInput" placeholder="输入消息与 @${phase.role} 讨论..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();WorkspacePage.sendChat('${phase.id}')}"></textarea>
-        <button class="ws-chat-send" onclick="WorkspacePage.sendChat('${phase.id}')">发送</button>
+        <button class="ws-chat-send" id="wsSendBtn" onclick="WorkspacePage.sendChat('${phase.id}')">发送</button>
       </div>`;
     }
 
@@ -213,7 +210,6 @@ const WorkspacePage = {
     try {
       await API.approvePhase(this._project.id, phaseId);
       this._project = await API.getProject(this._project.id);
-      // Move selection to next phase
       const idx = this._project.phases.findIndex(p => p.id === phaseId);
       if (idx < this._project.phases.length - 1) {
         this._selectedPhaseId = this._project.phases[idx + 1].id;
@@ -234,7 +230,6 @@ const WorkspacePage = {
   },
 
   showRegen(phaseId) {
-    const content = document.getElementById('shellContent');
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:var(--bg-overlay);z-index:500;display:flex;align-items:center;justify-content:center';
     modal.innerHTML = `
@@ -268,6 +263,7 @@ const WorkspacePage = {
     } catch(e) { Shell.toast(e.message, 'error'); btn.disabled = false; btn.textContent = '🔄 重新生成'; }
   },
 
+  /** D8: SSE streaming chat (replaces _typeText simulation) */
   async sendChat(phaseId) {
     if (this._chatSending) return;
     const input = document.getElementById('wsChatInput');
@@ -275,38 +271,68 @@ const WorkspacePage = {
     if (!msg) return;
     input.value = '';
     this._chatSending = true;
+    const sendBtn = document.getElementById('wsSendBtn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '...'; }
 
-    // Add user message immediately — use insertAdjacentHTML to preserve existing DOM
     const msgsEl = document.getElementById('wsChatMsgs');
     msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-msg chat-msg-user"><div class="chat-msg-avatar">👤</div><div class="chat-msg-bubble">${_esc(msg)}</div></div>`);
-    msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-msg chat-msg-ai" id="chatTyping"><div class="chat-msg-avatar">🤖</div><div class="chat-msg-bubble typing-cursor">思考中</div></div>`);
+    msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-msg chat-msg-ai" id="wsTyping"><div class="chat-msg-avatar">🤖</div><div class="chat-msg-bubble typing-cursor" id="wsStreamTarget"></div></div>`);
     msgsEl.scrollTop = msgsEl.scrollHeight;
 
+    this._abortCtrl = new AbortController();
+    let fullText = '';
+
     try {
-      const resp = await API.sendChat(this._project.id, phaseId, msg);
-      document.getElementById('chatTyping')?.remove();
-      // Typing effect
-      const bubble = document.createElement('div');
-      bubble.className = 'chat-msg chat-msg-ai';
-      bubble.innerHTML = `<div class="chat-msg-avatar">🤖</div><div class="chat-msg-bubble" id="typeTarget"></div>`;
-      msgsEl.appendChild(bubble);
-      await this._typeText('typeTarget', resp.text);
-      msgsEl.scrollTop = msgsEl.scrollHeight;
+      // Try SSE streaming first, fall back to regular API
+      if (typeof API.streamChat === 'function') {
+        await API.streamChat(
+          this._project.id, phaseId, msg,
+          (delta) => {
+            fullText += delta;
+            const target = document.getElementById('wsStreamTarget');
+            if (target) { target.textContent = fullText; target.classList.remove('typing-cursor'); }
+            msgsEl.scrollTop = msgsEl.scrollHeight;
+          },
+          () => { this._finishChat(fullText, msgsEl); },
+          (err) => { this._errorChat(err, fullText, msgsEl); },
+          this._abortCtrl.signal
+        );
+      } else {
+        // Fallback: non-streaming
+        const resp = await API.sendChat(this._project.id, phaseId, msg);
+        fullText = resp.text || '';
+        this._finishChat(fullText, msgsEl);
+      }
     } catch(e) {
-      document.getElementById('chatTyping')?.remove();
-      Shell.toast(e.message, 'error');
-    } finally {
-      this._chatSending = false;
+      this._errorChat(e, fullText, msgsEl);
     }
   },
 
-  async _typeText(elId, text) {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    for (let i = 0; i < text.length; i++) {
-      el.textContent = text.slice(0, i + 1);
-      if (i < text.length - 1) await new Promise(r => setTimeout(r, 15 + Math.random() * 25));
+  _finishChat(fullText, msgsEl) {
+    const typing = document.getElementById('wsTyping');
+    if (typing) {
+      typing.removeAttribute('id');
+      const target = typing.querySelector('.chat-msg-bubble');
+      if (target) { target.textContent = fullText; target.classList.remove('typing-cursor'); target.removeAttribute('id'); }
     }
+    this._chatSending = false;
+    this._abortCtrl = null;
+    const sendBtn = document.getElementById('wsSendBtn');
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '发送'; }
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  },
+
+  _errorChat(err, fullText, msgsEl) {
+    document.getElementById('wsTyping')?.remove();
+    if (fullText) {
+      msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-msg chat-msg-ai"><div class="chat-msg-avatar">🤖</div><div class="chat-msg-bubble">${_esc(fullText)}<br><em style="color:var(--warning)">⚠ 回复不完整</em></div></div>`);
+    } else if (err?.name !== 'AbortError') {
+      Shell.toast('对话失败: ' + err.message, 'error');
+    }
+    this._chatSending = false;
+    this._abortCtrl = null;
+    const sendBtn = document.getElementById('wsSendBtn');
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '发送'; }
   },
 
   _timeAgo(iso) {

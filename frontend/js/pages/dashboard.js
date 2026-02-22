@@ -57,23 +57,9 @@ const DashboardPage = {
     const total = project.phases.length;
     const pct = Math.round((completed / total) * 100);
 
-    let badge = '', action = '';
-    if (project.status === 'completed') {
-      badge = '<span class="badge badge-green">✅ 已完成</span>';
-      action = '👉 点击查看项目成果';
-    } else if (phase.status === 'awaiting_approval') {
-      badge = '<span class="badge badge-orange">⏳ 需要你操作</span>';
-      action = `👉 点击进入审批${phase.name}文档`;
-    } else if (phase.status === 'ai_working') {
-      badge = '<span class="badge badge-blue">🤖 AI 工作中</span>';
-      action = '👉 点击进入查看 AI 进度';
-    } else if (phase.status === 'rejected') {
-      badge = '<span class="badge badge-red">↩️ 已驳回</span>';
-      action = `👉 点击进入重新开始${phase.name}`;
-    } else {
-      badge = '<span class="badge badge-gray">▶ 待开始</span>';
-      action = '👉 点击进入开始第一阶段';
-    }
+    // D6: 5 standard project status badges
+    const projectBadge = this._projectBadge(project.status, phase?.status);
+    const phaseHint = this._phaseHint(project.status, phase);
 
     return `
       <div class="project-card" onclick="Router.navigate('/projects/${project.id}')">
@@ -82,7 +68,7 @@ const DashboardPage = {
             <span class="icon">${project.type_icon}</span>
             <h3>${_esc(project.name)}</h3>
           </div>
-          ${badge}
+          ${projectBadge}
         </div>
         <div class="pc-type">${project.type_name}</div>
         <div class="pc-phase">当前阶段: <strong>${phase.icon} ${phase.name}</strong> · ${this._statusText(phase.status)}</div>
@@ -90,9 +76,37 @@ const DashboardPage = {
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
           <div class="pc-progress-text">${completed}/${total} 完成</div>
         </div>
-        <div class="pc-action">${action}</div>
+        <div class="pc-action">${phaseHint}</div>
       </div>
     `;
+  },
+
+  /** D6: 5 standard project status badges */
+  _projectBadge(projectStatus, phaseStatus) {
+    const badges = {
+      'in_progress': '<span class="badge badge-blue">🔵 进行中</span>',
+      'pending':     '<span class="badge badge-gray">⚪ 待启动</span>',
+      'completed':   '<span class="badge badge-green">✅ 已完成</span>',
+      'archived':    '<span class="badge badge-dim">📦 已归档</span>',
+      'rejected':    '<span class="badge badge-red">🔴 已驳回</span>',
+    };
+    if (badges[projectStatus]) return badges[projectStatus];
+    // Infer from phase if project-level status not set
+    if (phaseStatus === 'awaiting_approval') return '<span class="badge badge-orange">⏳ 需操作</span>';
+    if (phaseStatus === 'ai_working') return badges['in_progress'];
+    if (phaseStatus === 'rejected') return badges['rejected'];
+    return badges['pending'];
+  },
+
+  /** Phase-level action hint */
+  _phaseHint(projectStatus, phase) {
+    if (projectStatus === 'completed') return '👉 点击查看项目成果';
+    if (projectStatus === 'archived') return '📦 已归档';
+    if (!phase) return '👉 点击进入';
+    if (phase.status === 'awaiting_approval') return `👉 点击进入审批 ${phase.name} 文档`;
+    if (phase.status === 'ai_working') return '👉 点击查看 AI 进度';
+    if (phase.status === 'rejected') return `👉 点击重新开始 ${phase.name}`;
+    return '👉 点击进入开始第一阶段';
   },
 
   _statusText(status) {

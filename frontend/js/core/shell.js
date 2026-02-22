@@ -33,11 +33,9 @@ const Shell = {
         </a>
 
         <div class="sidebar-divider"></div>
-        <div class="sidebar-section-label">
-          <span>💬 AI 对话</span>
-          <button class="sidebar-chat-new" onclick="event.stopPropagation();ChatPage.showAgentPicker()" title="新对话">+</button>
-        </div>
-        <div id="sidebarChatTree" class="sidebar-chat-tree"></div>
+        <a class="nav-item" data-route="/chat" onclick="Router.navigate('/chat');Shell.closeMobile()">
+          <span class="nav-icon">💬</span><span class="nav-label">AI 对话</span>
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-user">
@@ -49,16 +47,8 @@ const Shell = {
     `;
   },
 
-  /** Called by ChatPage to refresh the tree in sidebar */
-  renderChatTree() {
-    const container = document.getElementById('sidebarChatTree');
-    if (!container) return;
-    if (typeof ChatPage === 'undefined' || !ChatPage._agents) {
-      container.innerHTML = '<div style="padding:8px 14px;font-size:12px;color:var(--text-dim)">加载中...</div>';
-      return;
-    }
-    ChatPage._renderSidebarTree(container);
-  },
+  /** @deprecated Chat tree moved to RolePanel. Kept as no-op for compat. */
+  renderChatTree() { /* no-op: sidebar chat tree removed in v4.0 */ },
 
   renderTopbar() {
     // Topbar is updated per-page via setBreadcrumb
