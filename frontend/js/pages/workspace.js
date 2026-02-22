@@ -276,10 +276,10 @@ const WorkspacePage = {
     input.value = '';
     this._chatSending = true;
 
-    // Add user message immediately
+    // Add user message immediately — use insertAdjacentHTML to preserve existing DOM
     const msgsEl = document.getElementById('wsChatMsgs');
-    msgsEl.innerHTML += `<div class="chat-msg chat-msg-user"><div class="chat-msg-avatar">👤</div><div class="chat-msg-bubble">${_esc(msg)}</div></div>`;
-    msgsEl.innerHTML += `<div class="chat-msg chat-msg-ai" id="chatTyping"><div class="chat-msg-avatar">🤖</div><div class="chat-msg-bubble typing-cursor">思考中</div></div>`;
+    msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-msg chat-msg-user"><div class="chat-msg-avatar">👤</div><div class="chat-msg-bubble">${_esc(msg)}</div></div>`);
+    msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-msg chat-msg-ai" id="chatTyping"><div class="chat-msg-avatar">🤖</div><div class="chat-msg-bubble typing-cursor">思考中</div></div>`);
     msgsEl.scrollTop = msgsEl.scrollHeight;
 
     try {
@@ -292,8 +292,12 @@ const WorkspacePage = {
       msgsEl.appendChild(bubble);
       await this._typeText('typeTarget', resp.text);
       msgsEl.scrollTop = msgsEl.scrollHeight;
-    } catch(e) { Shell.toast(e.message, 'error'); }
-    this._chatSending = false;
+    } catch(e) {
+      document.getElementById('chatTyping')?.remove();
+      Shell.toast(e.message, 'error');
+    } finally {
+      this._chatSending = false;
+    }
   },
 
   async _typeText(elId, text) {

@@ -6,6 +6,8 @@ const ChatPage = {
   render() {
     Shell.setBreadcrumb([{ label: '💬 AI 对话', path: '/chat' }]);
     this._messages = AppState.get('free_chat', []);
+    // Ensure chronological order on load
+    this._messages.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     this._renderFull();
   },
 
@@ -56,7 +58,7 @@ const ChatPage = {
     input.value = '';
     input.style.height = 'auto';
 
-    this._messages.push({ role: 'user', text: msg });
+    this._messages.push({ role: 'user', text: msg, time: new Date().toISOString() });
     this._sending = true;
 
     const msgsEl = document.getElementById('chatPageMsgs');
@@ -64,14 +66,14 @@ const ChatPage = {
     const welcome = msgsEl.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
 
-    // Add user msg
-    msgsEl.innerHTML += this._renderMsg({ role: 'user', text: msg });
+    // Add user msg — use insertAdjacentHTML to avoid destroying existing DOM nodes
+    msgsEl.insertAdjacentHTML('beforeend', this._renderMsg({ role: 'user', text: msg }));
 
     // Add typing indicator
-    msgsEl.innerHTML += `<div class="chat-full-msg ai" id="chatPageTyping">
+    msgsEl.insertAdjacentHTML('beforeend', `<div class="chat-full-msg ai" id="chatPageTyping">
       <div class="chat-full-avatar">🤖</div>
       <div class="chat-full-bubble typing-cursor">思考中</div>
-    </div>`;
+    </div>`);
     this._scrollBottom();
 
     try {
@@ -86,13 +88,14 @@ const ChatPage = {
 
       await this._typeText('chatPageTypeTarget', resp.text);
 
-      this._messages.push({ role: 'ai', text: resp.text });
+      this._messages.push({ role: 'ai', text: resp.text, time: new Date().toISOString() });
       AppState.set('free_chat', this._messages);
     } catch(e) {
       document.getElementById('chatPageTyping')?.remove();
       Shell.toast(e.message, 'error');
+    } finally {
+      this._sending = false;
     }
-    this._sending = false;
     this._scrollBottom();
   },
 
