@@ -601,7 +601,7 @@ async def _proxy_stream(method: str, path: str, headers: dict, body: bytes, user
 
     async def stream_generator():
         try:
-            async for chunk in resp.aiter_raw():
+            async for chunk in resp.aiter_bytes():
                 yield chunk
         except Exception as e:
             logger.error("proxy_stream_error", error=str(e))
@@ -611,7 +611,7 @@ async def _proxy_stream(method: str, path: str, headers: dict, body: bytes, user
     return StreamingResponse(
         stream_generator(),
         status_code=resp.status_code,
-        media_type="text/event-stream",
+        media_type="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
