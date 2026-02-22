@@ -535,9 +535,9 @@ async def chat_proxy(request: Request, path: str):
     if query:
         target_path += f"?{query}"
 
-    # 3. Build headers — inject API Key, forward useful headers
+    # 3. Build headers — inject API Key (Authorization: Bearer per gateway docs)
     headers = {
-        "X-API-Key": CLAWAPI_KEY,
+        "Authorization": f"Bearer {CLAWAPI_KEY}",
         "X-Forwarded-User": username,
         "X-Forwarded-User-Id": jwt_payload.get("sub", ""),
         "Content-Type": request.headers.get("Content-Type", "application/json"),
@@ -725,7 +725,7 @@ async def ai_chat(req: ChatRequest, user: User = Depends(get_current_user), db: 
     
     try:
         r = await _http_client.post('/v1/chat/completions',
-            headers={'X-API-Key': CLAWAPI_KEY},
+            headers={'Authorization': f'Bearer {CLAWAPI_KEY}'},
             json={'model': 'default', 'message': prompt + ' User: ' + req.message},
             timeout=120.0)
         if r.status_code != 200:
@@ -878,7 +878,7 @@ async def test_ai_config(request: Request):
     # Test agents endpoint
     if CLAWAPI_KEY:
         try:
-            resp = await _http_client.get("/v1/agents", headers={"X-API-Key": CLAWAPI_KEY}, timeout=5.0)
+            resp = await _http_client.get("/v1/agents", headers={"Authorization": f"Bearer {CLAWAPI_KEY}"}, timeout=5.0)
             result["agents_status"] = resp.status_code
             result["agents_ok"] = resp.status_code == 200
             if resp.status_code == 200:
