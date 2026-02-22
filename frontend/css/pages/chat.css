@@ -1,0 +1,48 @@
+/* ═══ AI Chat Page ═══ */
+.chat-page { display:flex; flex-direction:column; height:calc(100vh - var(--topbar-h)); }
+.chat-messages { flex:1; overflow-y:auto; padding:var(--space-lg); display:flex; flex-direction:column; gap:var(--space-md); }
+.chat-welcome {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:var(--space-2xl);
+}
+.chat-welcome-icon { font-size:48px; margin-bottom:var(--space-md); opacity:0.7; }
+.chat-welcome h2 { font-size:22px; margin-bottom:var(--space-sm); }
+.chat-welcome p { color:var(--text-secondary); font-size:14px; max-width:400px; }
+
+.chat-input-area {
+  padding:var(--space-md) var(--space-lg); border-top:1px solid var(--border);
+  background:var(--bg-primary);
+}
+.chat-input-wrap {
+  display:flex; gap:var(--space-sm); align-items:flex-end;
+  max-width:800px; margin:0 auto;
+}
+.chat-input-wrap textarea {
+  flex:1; padding:12px 16px; background:var(--bg-input); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text-primary); font-size:14px;
+  font-family:var(--font-sans); resize:none; min-height:44px; max-height:160px;
+}
+.chat-input-wrap textarea:focus { border-color:var(--accent); outline:none; }
+.chat-send-btn {
+  width:44px; height:44px; border-radius:var(--radius); background:var(--gradient-1);
+  border:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.chat-send-btn:hover { filter:brightness(1.1); }
+.chat-send-btn svg { width:18px; height:18px; }
+
+/* Full chat messages */
+.chat-full-msg { display:flex; gap:var(--space-sm); align-items:flex-start; max-width:800px; margin:0 auto; width:100%; }
+.chat-full-msg.user { flex-direction:row-reverse; }
+.chat-full-avatar {
+  width:36px; height:36px; border-radius:var(--radius-sm); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600;
+}
+.chat-full-msg.ai .chat-full-avatar { background:var(--accent-glow); color:var(--accent); }
+.chat-full-msg.user .chat-full-avatar { background:var(--accent-2-glow); color:var(--accent-2); }
+.chat-full-bubble {
+  padding:var(--space-md); border-radius:var(--radius); max-width:75%;
+  font-size:14px; line-height:1.7;
+}
+.chat-full-msg.ai .chat-full-bubble { background:var(--bg-card); border:1px solid var(--border); }
+.chat-full-msg.user .chat-full-bubble { background:var(--accent-glow); border:1px solid rgba(56,189,248,0.15); }

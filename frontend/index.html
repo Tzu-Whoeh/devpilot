@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevPilot — AI 驱动的项目协作平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/vars.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages/dashboard.css">
+  <link rel="stylesheet" href="css/pages/wizard.css">
+  <link rel="stylesheet" href="css/pages/workspace.css">
+  <link rel="stylesheet" href="css/pages/chat.css">
+  <link rel="stylesheet" href="css/pages/settings.css">
+</head>
+<body>
+
+  <!-- ═══ Auth Screen ═══ -->
+  <div class="auth-screen" id="authScreen">
+    <div class="auth-bg"></div>
+    <div class="auth-card">
+      <div class="auth-logo">🚀</div>
+      <div class="auth-title">Dev<span>Pilot</span></div>
+      <div class="auth-subtitle">AI 驱动的项目协作平台</div>
+
+      <div class="auth-tabs">
+        <div class="auth-tab active" data-tab="login" onclick="LoginPage.switchTab('login')">登录</div>
+        <div class="auth-tab" data-tab="register" onclick="LoginPage.switchTab('register')">注册</div>
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+
+      <form class="auth-form active" id="loginForm">
+        <div class="field">
+          <label>用户名</label>
+          <input type="text" id="loginUser" placeholder="输入用户名" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input type="password" id="loginPass" placeholder="输入密码" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="auth-btn" id="loginBtn">登录</button>
+      </form>
+
+      <form class="auth-form" id="registerForm">
+        <div class="field">
+          <label>用户名</label>
+          <input type="text" id="regUser" placeholder="至少3个字符" autocomplete="username" required minlength="3">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input type="password" id="regPass" placeholder="至少8个字符" autocomplete="new-password" required minlength="8">
+        </div>
+        <div class="field">
+          <label>邮箱（可选）</label>
+          <input type="email" id="regEmail" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <button type="submit" class="auth-btn" id="regBtn">注册</button>
+      </form>
+
+      <div class="auth-config">
+        <div class="config-toggle" onclick="this.nextElementSibling.classList.toggle('open')">⚙️ 高级设置</div>
+        <div class="config-fields" id="configFields">
+          <div class="field">
+            <label>服务地址</label>
+            <input type="text" id="cfgBaseUrl" placeholder="默认: 当前域名" value="">
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="cfgMock" checked>
+            <label style="margin:0;font-size:12px;color:var(--text-dim)">Mock 模式（无需后端）</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ App Shell ═══ -->
+  <div class="app-shell" id="appShell">
+    <aside class="shell-sidebar" id="shellSidebar"></aside>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <header class="shell-topbar" id="shellTopbar"></header>
+    <main class="shell-content" id="shellContent"></main>
+  </div>
+
+  <!-- ═══ Toast Container ═══ -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ═══ JS Core ═══ -->
+  <script src="js/core/events.js"></script>
+  <script src="js/core/state.js"></script>
+  <script src="js/core/router.js"></script>
+  <script src="js/mock/data.js"></script>
+  <script src="js/mock/simulator.js"></script>
+  <script src="js/core/api.js"></script>
+  <script src="js/core/shell.js"></script>
+
+  <!-- ═══ JS Pages ═══ -->
+  <script src="js/pages/login.js"></script>
+  <script src="js/pages/dashboard.js"></script>
+  <script src="js/pages/wizard.js"></script>
+  <script src="js/pages/workspace.js"></script>
+  <script src="js/pages/chat.js"></script>
+  <script src="js/pages/settings.js"></script>
+
+  <!-- ═══ Boot ═══ -->
+  <script>
+    (function boot() {
+      // Restore settings
+      const savedMock = AppState.get('use_mock');
+      if (savedMock !== undefined) CONFIG.USE_MOCK = savedMock;
+      const savedUrl = AppState.get('base_url');
+      if (savedUrl) CONFIG.BASE_URL = savedUrl;
+
+      // Apply config from login screen
+      const cfgMock = document.getElementById('cfgMock');
+      const cfgBase = document.getElementById('cfgBaseUrl');
+      if (cfgMock) cfgMock.checked = CONFIG.USE_MOCK;
+      if (cfgBase) cfgBase.value = CONFIG.BASE_URL || '';
+
+      // Watch config changes on login screen
+      if (cfgMock) cfgMock.onchange = () => { CONFIG.USE_MOCK = cfgMock.checked; AppState.set('use_mock', cfgMock.checked); };
+      if (cfgBase) cfgBase.onchange = () => { CONFIG.BASE_URL = cfgBase.value.replace(/\/+$/, ''); AppState.set('base_url', CONFIG.BASE_URL); };
+
+      // Register routes
+      Router.add('/login', () => LoginPage.render(), { noShell: true, guest: true });
+      Router.add('/', () => DashboardPage.render(), { auth: true });
+      Router.add('/new', () => WizardPage.render(), { auth: true });
+      Router.add('/projects/:id', (p) => WorkspacePage.render(p), { auth: true });
+      Router.add('/chat', () => ChatPage.render(), { auth: true });
+      Router.add('/settings', () => SettingsPage.render(), { auth: true });
+
+      // Init shell if logged in
+      if (AppState.isLoggedIn) {
+        Shell.init();
+      }
+
+      // Start router
+      Router.start();
+
+      // Default to login if no hash and not logged in
+      if (!window.location.hash && !AppState.isLoggedIn) {
+        Router.navigate('/login');
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+"""
+通用 Pydantic 模型: PaginatedResponse, ErrorResponse, HealthResponse
+
+TODO: P1-W1-01 — Phase 1
+Status: 🔲 占位文件
+See: CODE-DEVPILOT-001 v1.0
+"""

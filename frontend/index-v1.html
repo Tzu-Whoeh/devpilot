@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevPilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="css/vars.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/chat.css">
+<link rel="stylesheet" href="css/monitor.css">
+<link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+
+<!-- ═══════════════════ AUTH SCREEN ═══════════════════ -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-bg"></div>
+  <div class="auth-card">
+    <div class="auth-logo">DP</div>
+    <div class="auth-title">Dev<span>Pilot</span></div>
+    <div class="auth-subtitle">AI Development Platform</div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab active" data-tab="login" onclick="switchTab('login')">登录</div>
+      <div class="auth-tab" data-tab="register" onclick="switchTab('register')">注册</div>
+    </div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <form class="auth-form active" id="loginForm" onsubmit="return doLogin(event)">
+      <div class="field">
+        <label>用户名</label>
+        <input type="text" id="loginUser" placeholder="输入用户名" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="loginPass" placeholder="输入密码" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="auth-btn" id="loginBtn">登录</button>
+    </form>
+
+    <form class="auth-form" id="registerForm" onsubmit="return doRegister(event)">
+      <div class="field">
+        <label>用户名</label>
+        <input type="text" id="regUser" placeholder="3-50 个字符，字母数字下划线" autocomplete="username" required minlength="3" maxlength="50" pattern="[a-zA-Z0-9_-]+">
+      </div>
+      <div class="field">
+        <label>邮箱 <span style="color:var(--text-muted)">(可选)</span></label>
+        <input type="email" id="regEmail" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="regPass" placeholder="至少 8 个字符" autocomplete="new-password" required minlength="8">
+      </div>
+      <button type="submit" class="auth-btn" id="regBtn">注册</button>
+    </form>
+
+    <div class="auth-config">
+      <div class="config-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        &#x2699; 服务配置 <span style="font-size:9px">&#x25BE;</span>
+      </div>
+      <div class="config-fields" id="configFields">
+        <div class="field">
+          <label>服务地址</label>
+          <input type="text" id="cfgBase" value="" placeholder="留空则使用当前域名">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CHAT SCREEN ═══════════════════ -->
+<div class="chat-screen" id="chatScreen">
+  <header class="header">
+    <div class="hdr-left">
+      <div class="hdr-logo">DP</div>
+      <div class="hdr-title">Dev<span>Pilot</span></div>
+    </div>
+    <div class="hdr-right">
+      <div class="status-dot" id="stDot"></div>
+      <span class="status-text" id="stText">就绪</span>
+      <button class="hdr-btn" id="monitorBtn" onclick="toggleMonitor()">&#x26A1; Monitor</button>
+      <div class="hdr-user" onclick="openUserSettings()" style="cursor:pointer;">
+        <div class="hdr-avatar" id="userAvatar">U</div>
+        <span class="hdr-username" id="userDisplay">user</span>
+      </div>
+      <button class="hdr-btn logout" onclick="doLogout()">退出</button>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="side-section">
+      <button class="side-btn new" onclick="newSession()">+ 新建会话</button>
+    </div>
+    <div class="side-label">会话列表</div>
+    <div class="session-list" id="sessionList"></div>
+  </aside>
+
+  <main class="chat-area">
+    <div class="messages" id="messages">
+      <div class="welcome-box" id="welcome">
+        <div class="welcome-icon">&#x1F916;</div>
+        <h2>开始对话</h2>
+        <p>输入消息即可开始，会话将自动创建。点击 Monitor 查看客户端与服务器的实时通讯。</p>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea class="input-box" id="inputBox" placeholder="输入消息... (Shift+Enter 换行)" rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="input-hint" id="inputHint"></div>
+    </div>
+  </main>
+
+  <!-- ═══════════════════ NETWORK MONITOR ═══════════════════ -->
+  <div class="monitor-panel" id="monitorPanel">
+    <div class="mon-hdr">
+      <div class="mon-bar">
+        <div class="mon-title"><span class="live"></span> Network Monitor</div>
+        <div class="mon-acts">
+          <button class="mon-abtn" onclick="monExport()">Export</button>
+          <button class="mon-abtn dng" onclick="monClear()">Clear</button>
+        </div>
+      </div>
+      <div class="mon-stats">
+        <span class="mon-stat">Reqs: <b id="monTotal">0</b></span>
+        <span class="mon-stat"><b id="monOk" style="color:var(--success)">0</b> ok</span>
+        <span class="mon-stat"><b id="monFail" style="color:var(--error)">0</b> fail</span>
+        <span class="mon-stat"><b id="monSSE" style="color:var(--accent-2)">0</b> sse</span>
+      </div>
+    </div>
+    <div class="mon-tabs">
+      <div class="mon-tab active" data-tab="all" onclick="monTab('all')">All <span class="tc" id="tcAll">0</span></div>
+      <div class="mon-tab" data-tab="api" onclick="monTab('api')">API <span class="tc" id="tcApi">0</span></div>
+      <div class="mon-tab" data-tab="sse" onclick="monTab('sse')">SSE <span class="tc" id="tcSse">0</span></div>
+      <div class="mon-tab" data-tab="err" onclick="monTab('err')">Errors <span class="tc" id="tcErr">0</span></div>
+    </div>
+    <div class="mon-filt">
+      <span class="mon-chip active" data-f="all" onclick="monFilt(this)">All</span>
+      <span class="mon-chip" data-f="auth" onclick="monFilt(this)">/auth</span>
+      <span class="mon-chip" data-f="api" onclick="monFilt(this)">/api</span>
+      <span class="mon-chip" data-f="health" onclick="monFilt(this)">/health</span>
+    </div>
+    <div class="mon-logs" id="monLogs"></div>
+  </div>
+</div>
+
+<script src="js/utils.js"></script>     <!-- state, $, esc, baseUrl -->
+<script src="js/ui.js"></script>        <!-- toast, setStatus, addMsg, scrollBottom, fmt -->
+<script src="js/monitor.js"></script>   <!-- Mon engine, sHL, tf (traced fetch) -->
+<script src="js/auth.js"></script>      <!-- login, register, logout, enterChat -->
+<script src="js/sessions.js"></script>  <!-- loadSessions, newSession, selectSession, loadHistory -->
+<script src="js/chat.js"></script>      <!-- sendMessage (SSE streaming) -->
+<script src="js/boot.js"></script>      <!-- auto-login from localStorage (runs last) -->
+
+  <!-- User Settings Modal -->
+  <style>
+  .modal { 
+    position: fixed !important; 
+    top: 0 !important; 
+    left: 0 !important; 
+    width: 100vw !important; 
+    height: 100vh !important; 
+    background: rgba(0,0,0,0.8) !important; 
+    z-index: 9999 !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+.modal.show { display: flex !important; }
+  .modal-content { 
+    background: #1a1a2e; 
+    padding: 30px; 
+    border-radius: 12px; 
+    width: 90%;
+    max-width: 400px;
+    color: #fff;
+  }
+.modal.show { display: flex !important; }
+  .modal-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 20px; 
+  }
+.modal.show { display: flex !important; }
+  .modal-close { 
+    background: none; 
+    border: none; 
+    color: #fff; 
+    font-size: 24px; 
+    cursor: pointer; 
+  }
+.modal.show { display: flex !important; }
+  .modal-body .field { margin-bottom: 15px; }
+  .modal-body label { display: block; margin-bottom: 5px; color: #888; font-size: 12px; }
+  .modal-body input { 
+    width: 100%; 
+    padding: 12px; 
+    border: 1px solid #333; 
+    border-radius: 6px; 
+    background: #16213e; 
+    color: #fff; 
+    box-sizing: border-box;
+  }
+.modal.show { display: flex !important; }
+  .auth-btn {
+    width: 100%;
+    padding: 12px;
+    background: #4ade80;
+    border: none;
+    border-radius: 6px;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+.modal.show { display: flex !important; }
+  </style>
+
+  <div class="modal" id="userSettingsModal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>用户设置</h3>
+        <button class="modal-close" onclick="closeUserSettings()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>用户名</label>
+          <input type="text" id="settingsUsername" disabled>
+        </div>
+        <div class="field">
+          <label>当前密码</label>
+          <input type="password" id="oldPassword" placeholder="输入当前密码">
+        </div>
+        <div class="field">
+          <label>新密码</label>
+          <input type="password" id="newPassword" placeholder="输入新密码（至少8位）">
+        </div>
+        <button class="auth-btn" onclick="changePassword()">修改密码</button>
+        <div id="settingsMsg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+
+</body>
+</html>

@@ -1,0 +1,49 @@
+/* ═══ New Project Wizard ═══ */
+.wizard { max-width:800px; margin:0 auto; }
+.wizard-progress { display:flex; align-items:center; justify-content:center; gap:var(--space-sm); margin-bottom:var(--space-2xl); }
+.wiz-step {
+  display:flex; align-items:center; gap:var(--space-sm); font-size:13px; color:var(--text-muted);
+}
+.wiz-step.active { color:var(--accent); }
+.wiz-step.done { color:var(--success); }
+.wiz-dot {
+  width:28px; height:28px; border-radius:50%; border:2px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;
+  transition:all var(--duration);
+}
+.wiz-step.active .wiz-dot { border-color:var(--accent); background:var(--accent-glow); color:var(--accent); }
+.wiz-step.done .wiz-dot { border-color:var(--success); background:var(--success-bg); color:var(--success); }
+.wiz-line { width:40px; height:2px; background:var(--border); }
+.wiz-step.done+.wiz-line { background:var(--success); }
+
+/* Step 1: Type Select */
+.wiz-title { font-size:24px; font-weight:600; text-align:center; margin-bottom:var(--space-sm); }
+.wiz-subtitle { text-align:center; color:var(--text-secondary); font-size:14px; margin-bottom:var(--space-xl); }
+
+/* Step 2: Phase Timeline */
+.phase-timeline { position:relative; padding-left:32px; margin-bottom:var(--space-xl); }
+.phase-timeline::before {
+  content:''; position:absolute; left:11px; top:12px; bottom:12px;
+  width:2px; background:var(--border);
+}
+.pt-item {
+  position:relative; padding:var(--space-md) 0; display:flex; align-items:flex-start; gap:var(--space-md);
+}
+.pt-dot {
+  position:absolute; left:-32px; top:18px; width:22px; height:22px;
+  border-radius:50%; border:2px solid var(--border-light); background:var(--bg-card);
+  display:flex; align-items:center; justify-content:center; font-size:11px; z-index:1;
+}
+.pt-content { flex:1; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-md); }
+.pt-content:hover { border-color:var(--border-light); }
+.pt-header { display:flex; align-items:center; gap:var(--space-sm); margin-bottom:4px; }
+.pt-name { font-weight:600; font-size:15px; }
+.pt-role { font-size:12px; color:var(--accent); background:var(--accent-glow); padding:2px 8px; border-radius:var(--radius-full); }
+.pt-desc { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+.pt-detail { font-size:12px; color:var(--text-dim); margin-top:6px; }
+
+/* Step 3: Naming */
+.wiz-form { max-width:480px; margin:0 auto; }
+.wiz-form .field { margin-bottom:var(--space-lg); }
+
+.wiz-actions { display:flex; justify-content:center; gap:var(--space-md); margin-top:var(--space-xl); }

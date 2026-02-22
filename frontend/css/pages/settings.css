@@ -1,0 +1,26 @@
+/* ═══ Settings ═══ */
+.settings-page { max-width:600px; }
+.settings-section { margin-bottom:var(--space-xl); }
+.settings-section h3 { font-size:16px; font-weight:600; margin-bottom:var(--space-md); padding-bottom:var(--space-sm); border-bottom:1px solid var(--border); }
+.setting-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:var(--space-md) 0; border-bottom:1px solid rgba(30,41,59,0.5);
+}
+.setting-info h4 { font-size:14px; font-weight:500; }
+.setting-info p { font-size:12px; color:var(--text-dim); margin-top:2px; }
+
+/* Toggle Switch */
+.toggle { position:relative; width:44px; height:24px; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-track {
+  position:absolute; inset:0; background:var(--border-light); border-radius:12px;
+  cursor:pointer; transition:background var(--duration);
+}
+.toggle-track::after {
+  content:''; position:absolute; left:3px; top:3px; width:18px; height:18px;
+  background:#fff; border-radius:50%; transition:transform var(--duration);
+}
+.toggle input:checked+.toggle-track { background:var(--accent); }
+.toggle input:checked+.toggle-track::after { transform:translateX(20px); }
+
+.settings-danger { margin-top:var(--space-2xl); padding-top:var(--space-lg); border-top:1px solid rgba(248,113,113,0.2); }
