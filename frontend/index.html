@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/pages/workspace.css">
   <link rel="stylesheet" href="css/pages/chat.css">
   <link rel="stylesheet" href="css/pages/settings.css">
+  <link rel="stylesheet" href="css/pages/debug.css">
 </head>
 <body>
 
@@ -103,6 +104,7 @@
   <script src="js/pages/workspace.js"></script>
   <script src="js/pages/chat.js"></script>
   <script src="js/pages/settings.js"></script>
+  <script src="js/pages/debug.js"></script>
 
   <!-- ═══ Boot ═══ -->
   <script>
@@ -130,10 +132,13 @@
       Router.add('/projects/:id', (p) => WorkspacePage.render(p), { auth: true });
       Router.add('/chat', () => ChatPage.render(), { auth: true });
       Router.add('/settings', () => SettingsPage.render(), { auth: true });
+      Router.add('/debug', () => DebugPage.render(), { auth: true });
 
       // Init shell if logged in
       if (AppState.isLoggedIn) {
         Shell.init();
+        // Init ChatPage agents for sidebar tree
+        ChatPage.init();
       }
 
       // Start router

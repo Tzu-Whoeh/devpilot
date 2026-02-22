@@ -775,6 +775,104 @@ async def health(db: AsyncSession = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Routes — Admin: AI Configuration (admin-only)
+# ---------------------------------------------------------------------------
+
+def _require_admin(request: Request) -> dict:
+    """Verify JWT and require admin role."""
+    payload = _verify_jwt_only(request)
+    if payload.get("role") != "admin":
+        raise AuthError(403, "FORBIDDEN", "Admin access required")
+    return payload
+
+
+class AIConfigUpdate(BaseModel):
+    clawapi_url: str | None = None
+    clawapi_key: str | None = None
+
+
+@app.get("/admin/ai-config", summary="Get AI config (admin only)")
+async def get_ai_config(request: Request):
+    _require_admin(request)
+    return {
+        "clawapi_url": CLAWAPI_URL,
+        "clawapi_key_set": bool(CLAWAPI_KEY),
+        "clawapi_key_preview": (CLAWAPI_KEY[:4] + "..." + CLAWAPI_KEY[-4:]) if len(CLAWAPI_KEY) > 8 else ("***" if CLAWAPI_KEY else ""),
+    }
+
+
+@app.put("/admin/ai-config", summary="Update AI config (admin only)")
+async def update_ai_config(body: AIConfigUpdate, request: Request):
+    global CLAWAPI_URL, CLAWAPI_KEY, _http_client
+    _require_admin(request)
+
+    changed = []
+
+    if body.clawapi_url is not None and body.clawapi_url != CLAWAPI_URL:
+        CLAWAPI_URL = body.clawapi_url.rstrip("/")
+        # Recreate httpx client with new base_url
+        if _http_client:
+            await _http_client.aclose()
+        _http_client = httpx.AsyncClient(
+            base_url=CLAWAPI_URL,
+            timeout=httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0),
+        )
+        logger.info("admin_update_clawapi_url", new_url=CLAWAPI_URL)
+        changed.append("clawapi_url")
+
+    if body.clawapi_key is not None and body.clawapi_key != CLAWAPI_KEY:
+        CLAWAPI_KEY = body.clawapi_key
+        logger.info("admin_update_clawapi_key", key_prefix=CLAWAPI_KEY[:4] + "..." if CLAWAPI_KEY else "(empty)")
+        changed.append("clawapi_key")
+
+    # Test connectivity
+    clawapi_ok = False
+    try:
+        resp = await _http_client.get("/health", timeout=5.0)
+        clawapi_ok = resp.status_code == 200
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "changed": changed,
+        "clawapi_url": CLAWAPI_URL,
+        "clawapi_key_set": bool(CLAWAPI_KEY),
+        "clawapi_connected": clawapi_ok,
+    }
+
+
+@app.post("/admin/ai-config/test", summary="Test AI connection (admin only)")
+async def test_ai_config(request: Request):
+    _require_admin(request)
+    result = {"clawapi_url": CLAWAPI_URL, "clawapi_key_set": bool(CLAWAPI_KEY)}
+
+    # Test health
+    try:
+        resp = await _http_client.get("/health", timeout=5.0)
+        result["health_status"] = resp.status_code
+        result["health_ok"] = resp.status_code == 200
+    except Exception as e:
+        result["health_ok"] = False
+        result["health_error"] = str(e)
+
+    # Test agents endpoint
+    if CLAWAPI_KEY:
+        try:
+            resp = await _http_client.get("/v1/agents", headers={"X-API-Key": CLAWAPI_KEY}, timeout=5.0)
+            result["agents_status"] = resp.status_code
+            result["agents_ok"] = resp.status_code == 200
+            if resp.status_code == 200:
+                data = resp.json()
+                result["agents"] = list((data.get("agents") or data).keys()) if isinstance(data.get("agents", data), dict) else []
+        except Exception as e:
+            result["agents_ok"] = False
+            result["agents_error"] = str(e)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 

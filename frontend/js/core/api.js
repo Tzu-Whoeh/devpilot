@@ -86,6 +86,21 @@ const API = {
     return this._post('/api/v1/ai/chat', { message });
   },
 
+  // ── Admin: AI Configuration ──
+  async getAIConfig() {
+    return this._get('/admin/ai-config');
+  },
+  async updateAIConfig(data) {
+    const res = await fetch(CONFIG.getBaseUrl() + '/admin/ai-config', {
+      method: 'PUT', headers: { ...this._headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return this._handle(res);
+  },
+  async testAIConfig() {
+    return this._post('/admin/ai-config/test');
+  },
+
   // ══════════════════════════════════════════════════════
   //  NEW: Agents + SSE Streaming
   // ══════════════════════════════════════════════════════
@@ -251,5 +266,86 @@ const API = {
   }
 };
 
+// ══════════════════════════════════════════════════════
+//  REQUEST LOGGER — captures all requests/responses for Debug page
+// ══════════════════════════════════════════════════════
+const RequestLog = {
+  _entries: [],
+  _maxEntries: 200,
+  _listeners: [],
+
+  add(entry) {
+    entry.id = Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    entry.timestamp = new Date().toISOString();
+    this._entries.unshift(entry);
+    if (this._entries.length > this._maxEntries) this._entries.pop();
+    this._listeners.forEach(fn => fn(entry));
+  },
+
+  getAll() { return this._entries; },
+  clear() { this._entries = []; this._listeners.forEach(fn => fn(null)); },
+  onEntry(fn) { this._listeners.push(fn); return () => { this._listeners = this._listeners.filter(f => f !== fn); }; },
+};
+
+// Monkey-patch fetch to log requests (non-intrusive)
+const _origFetch = window.fetch;
+window.fetch = async function(url, opts = {}) {
+  const method = (opts.method || 'GET').toUpperCase();
+  const urlStr = typeof url === 'string' ? url : url.toString();
+  const logEntry = {
+    method, url: urlStr,
+    requestHeaders: { ...(opts.headers || {}) },
+    requestBody: null,
+    status: null, statusText: '',
+    responseHeaders: {},
+    responseBody: null,
+    duration: 0,
+    error: null,
+    isSSE: false,
+  };
+
+  // Sanitize auth header for display
+  if (logEntry.requestHeaders['Authorization']) {
+    const token = logEntry.requestHeaders['Authorization'];
+    logEntry.requestHeaders['Authorization'] = token.slice(0, 15) + '...' + token.slice(-6);
+  }
+
+  // Parse request body
+  if (opts.body && typeof opts.body === 'string') {
+    try { logEntry.requestBody = JSON.parse(opts.body); } catch(_) { logEntry.requestBody = opts.body.slice(0, 500); }
+  }
+
+  logEntry.isSSE = (opts.headers?.['Accept'] || '').includes('text/event-stream');
+
+  const startTime = performance.now();
+  try {
+    const response = await _origFetch.call(window, url, opts);
+    logEntry.duration = Math.round(performance.now() - startTime);
+    logEntry.status = response.status;
+    logEntry.statusText = response.statusText;
+    // Capture response headers
+    response.headers.forEach((v, k) => { logEntry.responseHeaders[k] = v; });
+
+    // For non-SSE responses, capture body (clone to not consume)
+    if (!logEntry.isSSE && response.headers.get('content-type')?.includes('json')) {
+      const clone = response.clone();
+      clone.json().then(data => {
+        logEntry.responseBody = data;
+        RequestLog.add(logEntry);
+      }).catch(() => { RequestLog.add(logEntry); });
+    } else {
+      if (logEntry.isSSE) logEntry.responseBody = '(SSE stream)';
+      RequestLog.add(logEntry);
+    }
+    return response;
+  } catch (e) {
+    logEntry.duration = Math.round(performance.now() - startTime);
+    logEntry.error = e.message;
+    RequestLog.add(logEntry);
+    throw e;
+  }
+};
+
 window.CONFIG = CONFIG;
 window.API = API;
+window.RequestLog = RequestLog;

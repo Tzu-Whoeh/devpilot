@@ -1,5 +1,5 @@
 /* ═══ Settings ═══ */
-.settings-page { max-width:600px; }
+.settings-page { max-width:700px; }
 .settings-section { margin-bottom:var(--space-xl); }
 .settings-section h3 { font-size:16px; font-weight:600; margin-bottom:var(--space-md); padding-bottom:var(--space-sm); border-bottom:1px solid var(--border); }
 .setting-row {
@@ -24,3 +24,23 @@
 .toggle input:checked+.toggle-track::after { transform:translateX(20px); }
 
 .settings-danger { margin-top:var(--space-2xl); padding-top:var(--space-lg); border-top:1px solid rgba(248,113,113,0.2); }
+
+/* AI Config test results */
+.ai-test-result {
+  margin-top:var(--space-md); border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;
+}
+.ai-test-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:8px 12px; font-size:12px; border-bottom:1px solid var(--border);
+}
+.ai-test-row:last-child { border-bottom:none; }
+.ai-test-row.ok { background:rgba(52,211,153,0.05); }
+.ai-test-row.ok span:last-child { color:var(--success); }
+.ai-test-row.err { background:rgba(248,113,113,0.05); }
+.ai-test-row.err span:last-child { color:var(--error); }
+
+/* Button variants for settings */
+.btn-primary {
+  background:var(--gradient-1); color:#fff; border:none;
+}
+.btn-primary:hover { filter:brightness(1.1); }

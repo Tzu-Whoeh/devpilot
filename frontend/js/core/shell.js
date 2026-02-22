@@ -25,12 +25,19 @@ const Shell = {
         <a class="nav-item" data-route="/new" onclick="Router.navigate('/new');Shell.closeMobile()">
           <span class="nav-icon">✨</span><span class="nav-label">新建项目</span>
         </a>
-        <a class="nav-item" data-route="/chat" onclick="Router.navigate('/chat');Shell.closeMobile()">
-          <span class="nav-icon">💬</span><span class="nav-label">AI 对话</span>
-        </a>
         <a class="nav-item" data-route="/settings" onclick="Router.navigate('/settings');Shell.closeMobile()">
           <span class="nav-icon">⚙️</span><span class="nav-label">设置</span>
         </a>
+        <a class="nav-item" data-route="/debug" onclick="Router.navigate('/debug');Shell.closeMobile()">
+          <span class="nav-icon">🔧</span><span class="nav-label">调试</span>
+        </a>
+
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-section-label">
+          <span>💬 AI 对话</span>
+          <button class="sidebar-chat-new" onclick="event.stopPropagation();ChatPage.showAgentPicker()" title="新对话">+</button>
+        </div>
+        <div id="sidebarChatTree" class="sidebar-chat-tree"></div>
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-user">
@@ -40,6 +47,17 @@ const Shell = {
         </div>
       </div>
     `;
+  },
+
+  /** Called by ChatPage to refresh the tree in sidebar */
+  renderChatTree() {
+    const container = document.getElementById('sidebarChatTree');
+    if (!container) return;
+    if (typeof ChatPage === 'undefined' || !ChatPage._agents) {
+      container.innerHTML = '<div style="padding:8px 14px;font-size:12px;color:var(--text-dim)">加载中...</div>';
+      return;
+    }
+    ChatPage._renderSidebarTree(container);
   },
 
   renderTopbar() {
