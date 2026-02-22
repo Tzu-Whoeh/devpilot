@@ -484,6 +484,37 @@ async def public_key_pem():
 
 
 # ---------------------------------------------------------------------------
+# Routes — Chat: Agent listing (/chat/agents)
+#
+# ClawAPI's agents endpoint is at /v1/agents (not /api/v1/agents).
+# This dedicated route fetches from ClawAPI and returns to frontend.
+# Must be defined BEFORE the catch-all /chat/{path:path} proxy.
+# ---------------------------------------------------------------------------
+
+@app.get("/chat/agents", summary="List available AI agents")
+async def chat_agents(request: Request):
+    """Return available agents from ClawAPI."""
+    _verify_jwt_only(request)
+
+    # Try ClawAPI /v1/agents
+    if _http_client:
+        try:
+            headers = {}
+            if CLAWAPI_KEY:
+                headers["X-API-Key"] = CLAWAPI_KEY
+            resp = await _http_client.get("/v1/agents", headers=headers, timeout=5.0)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception as e:
+            logger.warning("chat_agents_fetch_failed", error=str(e))
+
+    # Fallback: default agent
+    return {"agents": {
+        "main": {"name": "主 Agent", "description": "通用助手（默认）"},
+    }}
+
+
+# ---------------------------------------------------------------------------
 # Routes — Chat Proxy (/chat/* → ClawAPI with API Key injection)
 #
 # Flow:  Frontend → JWT → Auth verifies → forward to ClawAPI with X-API-Key
@@ -493,9 +524,9 @@ async def public_key_pem():
 @app.api_route("/chat/{path:path}", methods=["GET", "POST", "PUT", "DELETE"],
                summary="Chat API proxy (JWT → API Key)")
 async def chat_proxy(request: Request, path: str):
-    """Proxy /chat/* to ClawAPI's /api/v1/*.
+    """Proxy /chat/* to ClawAPI's /v1/*.
 
-    Mapping: /chat/{path} → ClawAPI /api/v1/{path}
+    Mapping: /chat/{path} → ClawAPI /v1/{path}
 
     1. Verify user JWT
     2. Strip user's Authorization header
@@ -510,8 +541,8 @@ async def chat_proxy(request: Request, path: str):
     if not CLAWAPI_KEY:
         raise AuthError(503, "PROXY_ERROR", "ClawAPI key not configured")
 
-    # 2. Build upstream URL: /chat/{path} → /api/v1/{path}
-    target_path = f"/api/v1/{path}"
+    # 2. Build upstream URL: /chat/{path} → /v1/{path}
+    target_path = f"/v1/{path}"
     query = str(request.url.query)
     if query:
         target_path += f"?{query}"
