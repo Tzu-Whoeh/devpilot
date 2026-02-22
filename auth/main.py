@@ -765,7 +765,7 @@ async def health(db: AsyncSession = Depends(get_db)):
 
     clawapi_ok = False
     try:
-        resp = await _http_client.get("/health", timeout=5.0)
+        resp = await _http_client.get("/v1/health", timeout=5.0)
         clawapi_ok = resp.status_code == 200
     except Exception:
         pass
@@ -834,7 +834,7 @@ async def update_ai_config(body: AIConfigUpdate, request: Request):
     # Test connectivity
     clawapi_ok = False
     try:
-        resp = await _http_client.get("/health", timeout=5.0)
+        resp = await _http_client.get("/v1/health", timeout=5.0)
         clawapi_ok = resp.status_code == 200
     except Exception:
         pass
@@ -855,7 +855,7 @@ async def test_ai_config(request: Request):
 
     # Test health
     try:
-        resp = await _http_client.get("/health", timeout=5.0)
+        resp = await _http_client.get("/v1/health", timeout=5.0)
         result["health_status"] = resp.status_code
         result["health_ok"] = resp.status_code == 200
     except Exception as e:
