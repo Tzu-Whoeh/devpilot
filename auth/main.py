@@ -74,6 +74,41 @@ if not os.getenv("AI_GATEWAY_URL") and os.getenv("AI_GATEWAY_URL"):
 if not os.getenv("AI_GATEWAY_KEY") and os.getenv("AI_GATEWAY_KEY"):
     logger.warning("config_migration", msg="AI_GATEWAY_KEY is deprecated, please rename to AI_GATEWAY_KEY in .env")
 
+# ---------------------------------------------------------------------------
+# Persist config changes to .env file
+# ---------------------------------------------------------------------------
+
+def _persist_env_var(key: str, value: str) -> bool:
+    """Update or add a key=value pair in the .env file.
+
+    Uses atomic write (write temp + rename) to avoid corruption.
+    Returns True if successfully persisted, False otherwise.
+    """
+    try:
+        lines = []
+        found = False
+        if _env_file.exists():
+            for line in _env_file.read_text().splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and "=" in stripped:
+                    k, _, _ = stripped.partition("=")
+                    if k.strip() == key:
+                        lines.append(f"{key}={value}")
+                        found = True
+                        continue
+                lines.append(line)
+        if not found:
+            lines.append(f"{key}={value}")
+        # Atomic write: write to temp file then rename
+        tmp_file = _env_file.with_suffix(".env.tmp")
+        tmp_file.write_text("\n".join(lines) + "\n")
+        tmp_file.rename(_env_file)
+        logger.info("env_persisted", key=key, file=str(_env_file))
+        return True
+    except Exception as e:
+        logger.warning("env_persist_failed", key=key, error=str(e))
+        return False
+
 # Legacy HS256 fallback
 JWT_SECRET = os.getenv("JWT_SECRET", "")
 
@@ -834,6 +869,7 @@ async def update_ai_config(body: AIConfigUpdate, request: Request):
 
     if body.ai_gateway_url is not None and body.ai_gateway_url != AI_GATEWAY_URL:
         AI_GATEWAY_URL = body.ai_gateway_url.rstrip("/")
+        _persist_env_var("AI_GATEWAY_URL", AI_GATEWAY_URL)
         # Recreate httpx client with new base_url
         if _http_client:
             await _http_client.aclose()
@@ -846,6 +882,7 @@ async def update_ai_config(body: AIConfigUpdate, request: Request):
 
     if body.ai_gateway_key is not None and body.ai_gateway_key != AI_GATEWAY_KEY:
         AI_GATEWAY_KEY = body.ai_gateway_key
+        _persist_env_var("AI_GATEWAY_KEY", AI_GATEWAY_KEY)
         logger.info("admin_update_ai_gateway_key", key_prefix=AI_GATEWAY_KEY[:4] + "..." if AI_GATEWAY_KEY else "(empty)")
         changed.append("ai_gateway_key")
 
@@ -880,18 +917,18 @@ async def test_ai_config(request: Request):
         result["health_ok"] = False
         result["health_error"] = str(e)
 
-    # Test agents endpoint
-    if AI_GATEWAY_KEY:
-        try:
-            resp = await _http_client.get("/v1/agents", headers={"Authorization": f"Bearer {AI_GATEWAY_KEY}"}, timeout=5.0)
-            result["agents_status"] = resp.status_code
-            result["agents_ok"] = resp.status_code == 200
-            if resp.status_code == 200:
-                data = resp.json()
-                result["agents"] = list((data.get("agents") or data).keys()) if isinstance(data.get("agents", data), dict) else []
-        except Exception as e:
-            result["agents_ok"] = False
-            result["agents_error"] = str(e)
+    # Test agents endpoint (try with key if available, otherwise without)
+    try:
+        headers = {"Authorization": f"Bearer {AI_GATEWAY_KEY}"} if AI_GATEWAY_KEY else {}
+        resp = await _http_client.get("/v1/agents", headers=headers, timeout=5.0)
+        result["agents_status"] = resp.status_code
+        result["agents_ok"] = resp.status_code == 200
+        if resp.status_code == 200:
+            data = resp.json()
+            result["agents"] = list((data.get("agents") or data).keys()) if isinstance(data.get("agents", data), dict) else []
+    except Exception as e:
+        result["agents_ok"] = False
+        result["agents_error"] = str(e)
 
     return result
 

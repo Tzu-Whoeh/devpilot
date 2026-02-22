@@ -162,7 +162,7 @@ const SettingsPage = {
       <div class="setting-row">
         <div class="setting-info">
           <h4>API Key</h4>
-          <p>AI Gateway 认证密钥 ${c.ai_gateway_key_set ? `<span style="color:var(--success)">（已配置: ${_esc(c.ai_gateway_key_preview)}）</span>` : '<span style="color:var(--warning)">（未配置）</span>'}</p>
+          <p>AI Gateway 认证密钥 ${c.ai_gateway_key_set ? `<span style="color:var(--success)">（已配置: ${_esc(c.ai_gateway_key_preview)}）</span>` : '<span style="color:var(--text-dim)">（未配置 — 若 Gateway 无需认证则可留空）</span>'}</p>
         </div>
         <div>
           <input class="input" id="aiConfigKey" type="password" style="width:300px" value=""
@@ -222,8 +222,10 @@ const SettingsPage = {
           <span>${r.agents_ok ? r.agents?.join(', ') || 'OK' : _esc(r.agents_error || 'HTTP ' + r.agents_status)}</span>
         </div>`;
       }
-      if (!r.ai_gateway_key_set) {
+      if (!r.ai_gateway_key_set && !r.agents_ok) {
         html += `<div class="ai-test-row err"><span>⚠️ API Key 未配置</span><span>Agent 无法调用</span></div>`;
+      } else if (!r.ai_gateway_key_set && r.agents_ok) {
+        html += `<div class="ai-test-row ok"><span>ℹ️ API Key 未配置</span><span>Gateway 无需认证，功能正常</span></div>`;
       }
       html += '</div>';
       resultEl && (resultEl.innerHTML = html);
