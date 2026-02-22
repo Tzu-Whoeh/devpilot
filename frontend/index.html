@@ -68,10 +68,9 @@
             <label>服务地址</label>
             <input type="text" id="cfgBaseUrl" placeholder="默认: 当前域名" value="">
           </div>
-          <div class="field" style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="cfgMock" checked>
-            <label style="margin:0;font-size:12px;color:var(--text-dim)">Mock 模式（无需后端）</label>
-          </div>
+          <p style="font-size:11px;color:var(--text-dim);margin-top:4px">
+            模块级 Mock 开关请在登录后「设置」页面管理
+          </p>
         </div>
       </div>
     </div>
@@ -109,20 +108,23 @@
   <!-- ═══ Boot ═══ -->
   <script>
     (function boot() {
-      // Restore settings
-      const savedMock = AppState.get('use_mock');
-      if (savedMock !== undefined) CONFIG.USE_MOCK = savedMock;
+      // Restore module-level mock settings
+      const savedMock = AppState.get('mock_modules');
+      if (savedMock && typeof savedMock === 'object') {
+        Object.assign(CONFIG.MOCK, savedMock);
+      }
+      // Legacy compat: restore old USE_MOCK → projects/templates/phases
+      const legacyMock = AppState.get('use_mock');
+      if (legacyMock !== undefined && !savedMock) {
+        CONFIG.USE_MOCK = legacyMock;
+      }
+
       const savedUrl = AppState.get('base_url');
       if (savedUrl) CONFIG.BASE_URL = savedUrl;
 
       // Apply config from login screen
-      const cfgMock = document.getElementById('cfgMock');
       const cfgBase = document.getElementById('cfgBaseUrl');
-      if (cfgMock) cfgMock.checked = CONFIG.USE_MOCK;
       if (cfgBase) cfgBase.value = CONFIG.BASE_URL || '';
-
-      // Watch config changes on login screen
-      if (cfgMock) cfgMock.onchange = () => { CONFIG.USE_MOCK = cfgMock.checked; AppState.set('use_mock', cfgMock.checked); };
       if (cfgBase) cfgBase.onchange = () => { CONFIG.BASE_URL = cfgBase.value.replace(/\/+$/, ''); AppState.set('base_url', CONFIG.BASE_URL); };
 
       // Register routes
@@ -137,14 +139,12 @@
       // Init shell if logged in
       if (AppState.isLoggedIn) {
         Shell.init();
-        // Init ChatPage agents for sidebar tree
         ChatPage.init();
       }
 
       // Start router
       Router.start();
 
-      // Default to login if no hash and not logged in
       if (!window.location.hash && !AppState.isLoggedIn) {
         Router.navigate('/login');
       }

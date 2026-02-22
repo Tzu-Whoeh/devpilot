@@ -8,7 +8,6 @@ const SettingsPage = {
     const user = AppState.user || {};
     this._isAdmin = user.role === 'admin';
 
-    // Count chat sessions
     const sessions = AppState.get('chat_sessions', {});
     const sessionCount = Object.keys(sessions).length;
     const msgCount = Object.values(sessions).reduce((sum, s) => sum + (s.messages?.length || 0), 0);
@@ -35,16 +34,6 @@ const SettingsPage = {
             <h3>🔌 服务连接</h3>
             <div class="setting-row">
               <div class="setting-info">
-                <h4>Mock 模式</h4>
-                <p>开启后使用本地模拟数据，无需后端服务</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" ${CONFIG.USE_MOCK ? 'checked' : ''} onchange="SettingsPage.toggleMock(this.checked)">
-                <div class="toggle-track"></div>
-              </label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
                 <h4>后端服务地址</h4>
                 <p>Auth / PCC Core API 地址</p>
               </div>
@@ -53,6 +42,14 @@ const SettingsPage = {
                   placeholder="默认: 当前域名" onchange="SettingsPage.setBaseUrl(this.value)">
               </div>
             </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>📦 模块 Mock 开关</h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:var(--space-md)">
+              已完成的模块走真实后端，未完成模块使用本地模拟数据
+            </p>
+            ${this._renderMockSwitches()}
           </div>
 
           ${this._isAdmin ? `
@@ -95,8 +92,43 @@ const SettingsPage = {
       </div>
     `);
 
-    // Load AI config if admin
     if (this._isAdmin) this._loadAIConfig();
+  },
+
+  // ── Module mock switches ──
+  _mockModules: [
+    { key: 'auth',      label: '认证',     desc: '登录/注册/JWT',        done: true },
+    { key: 'admin',     label: '管理',     desc: 'AI 配置管理',          done: true },
+    { key: 'chat',      label: 'AI 对话',  desc: 'SSE 流式 / Agents',    done: true },
+    { key: 'projects',  label: '项目管理', desc: '项目 CRUD / 列表',      done: false },
+    { key: 'templates', label: '模板',     desc: '项目模板 / 阶段定义',   done: false },
+    { key: 'phases',    label: '阶段流程', desc: '阶段触发 / 审批 / AI 交互', done: false },
+  ],
+
+  _renderMockSwitches() {
+    return this._mockModules.map(m => {
+      const isMock = CONFIG.MOCK[m.key];
+      const statusIcon = m.done ? '✅' : '🔧';
+      const statusText = m.done ? '已完成' : '开发中';
+      return `<div class="setting-row">
+        <div class="setting-info">
+          <h4>${statusIcon} ${m.label}</h4>
+          <p>${m.desc} — <span style="color:${m.done ? 'var(--success)' : 'var(--warning)'}">${statusText}</span></p>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" ${isMock ? 'checked' : ''}
+            onchange="SettingsPage.toggleModuleMock('${m.key}', this.checked)">
+          <div class="toggle-track"></div>
+        </label>
+      </div>`;
+    }).join('');
+  },
+
+  toggleModuleMock(moduleKey, useMock) {
+    CONFIG.MOCK[moduleKey] = useMock;
+    // Persist
+    AppState.set('mock_modules', { ...CONFIG.MOCK });
+    Shell.toast(`${moduleKey}: ${useMock ? 'Mock 模式' : '真实后端'}`, 'info');
   },
 
   // ── AI Config (admin) ──
@@ -109,6 +141,7 @@ const SettingsPage = {
     } catch (e) {
       el.innerHTML = `<div class="setting-row"><div class="setting-info">
         <p style="color:var(--error)">加载失败: ${_esc(e.message)}</p>
+        <p style="font-size:11px;color:var(--text-dim);margin-top:4px">确认后端已部署且使用 admin 账号登录</p>
       </div></div>`;
     }
   },
@@ -151,12 +184,9 @@ const SettingsPage = {
 
     const data = {};
     if (url !== undefined) data.clawapi_url = url;
-    if (key) data.clawapi_key = key; // only send if non-empty
+    if (key) data.clawapi_key = key;
 
-    if (!Object.keys(data).length) {
-      Shell.toast('没有更改', 'info');
-      return;
-    }
+    if (!Object.keys(data).length) { Shell.toast('没有更改', 'info'); return; }
 
     btn && (btn.disabled = true, btn.textContent = '保存中...');
     try {
@@ -167,7 +197,6 @@ const SettingsPage = {
           : '配置未变更',
         result.clawapi_connected ? 'success' : 'warning'
       );
-      // Refresh
       this._loadAIConfig();
     } catch (e) {
       Shell.toast('保存失败: ' + e.message, 'error');
@@ -180,7 +209,6 @@ const SettingsPage = {
     const btn = document.getElementById('aiTestBtn');
     const resultEl = document.getElementById('aiTestResult');
     btn && (btn.disabled = true, btn.textContent = '测试中...');
-
     try {
       const r = await API.testAIConfig();
       let html = '<div class="ai-test-result">';
@@ -209,12 +237,6 @@ const SettingsPage = {
   },
 
   // ── Other actions ──
-  toggleMock(checked) {
-    CONFIG.USE_MOCK = checked;
-    AppState.set('use_mock', checked);
-    Shell.toast(checked ? 'Mock 模式已开启' : 'Mock 模式已关闭，将使用后端服务', 'info');
-  },
-
   setBaseUrl(url) {
     CONFIG.BASE_URL = url.replace(/\/+$/, '');
     AppState.set('base_url', CONFIG.BASE_URL);

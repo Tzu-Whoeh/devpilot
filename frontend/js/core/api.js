@@ -1,6 +1,37 @@
-/* ═══ API Client — Mock/Real Switch ═══ */
+/* ═══ API Client — Module-level Mock Switch ═══
+ *
+ * 已完成的模块直接走真实后端，不再 mock。
+ * 只有尚未完成的模块使用 Mock 数据。
+ *
+ * 模块状态:
+ *   auth     ✅ 已完成 — 永远走后端
+ *   admin    ✅ 已完成 — 永远走后端
+ *   chat     ✅ 已完成 — 永远走后端（SSE streaming, agents）
+ *   projects ❌ 未完成 — Mock
+ *   templates❌ 未完成 — Mock
+ *   phases   ❌ 未完成 — Mock
+ * ═══════════════════════════════════════════════ */
+
 const CONFIG = {
-  USE_MOCK: false,
+  /** Module-level mock switches — true = use mock */
+  MOCK: {
+    auth:      false,   // ✅ 后端已完成
+    admin:     false,   // ✅ 后端已完成
+    chat:      false,   // ✅ 后端已完成（SSE + agents）
+    projects:  true,    // ❌ PCC Core 未完成
+    templates: true,    // ❌ PCC Core 未完成
+    phases:    true,    // ❌ PCC Core 未完成
+  },
+
+  /** @deprecated — 兼容旧代码，读取 USE_MOCK 时映射到 projects */
+  get USE_MOCK() { return this.MOCK.projects; },
+  set USE_MOCK(v) {
+    // Legacy: 全局开关只影响未完成模块
+    this.MOCK.projects = v;
+    this.MOCK.templates = v;
+    this.MOCK.phases = v;
+  },
+
   BASE_URL: '',
   getBaseUrl() {
     if (this.BASE_URL) return this.BASE_URL;
@@ -9,9 +40,11 @@ const CONFIG = {
 };
 
 const API = {
-  // ── Auth (always real if available) ──
+  // ══════════════════════════════════════════════════════
+  //  AUTH — ✅ 已完成，永远走后端
+  // ══════════════════════════════════════════════════════
   async login(username, password) {
-    if (CONFIG.USE_MOCK) return MockAPI.login(username, password);
+    if (CONFIG.MOCK.auth) return MockAPI.login(username, password);
     const res = await fetch(CONFIG.getBaseUrl() + '/auth/login', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ username, password })
@@ -22,7 +55,7 @@ const API = {
   },
 
   async register(username, password, email) {
-    if (CONFIG.USE_MOCK) return MockAPI.register(username, password, email);
+    if (CONFIG.MOCK.auth) return MockAPI.register(username, password, email);
     const body = { username, password };
     if (email) body.email = email;
     const res = await fetch(CONFIG.getBaseUrl() + '/auth/register', {
@@ -34,59 +67,9 @@ const API = {
     return data;
   },
 
-  // ── Templates ──
-  async getTemplateTypes() {
-    if (CONFIG.USE_MOCK) return MockAPI.getTemplateTypes();
-    return this._get('/api/v1/templates/types');
-  },
-  async getTemplatePhases(typeKey) {
-    if (CONFIG.USE_MOCK) return MockAPI.getTemplatePhases(typeKey);
-    return this._get(`/api/v1/templates/types/${typeKey}/phases`);
-  },
-
-  // ── Projects ──
-  async getProjects() {
-    if (CONFIG.USE_MOCK) return MockAPI.getProjects();
-    return this._get('/api/v1/projects');
-  },
-  async getProject(id) {
-    if (CONFIG.USE_MOCK) return MockAPI.getProject(id);
-    return this._get(`/api/v1/projects/${id}`);
-  },
-  async createProject(data) {
-    if (CONFIG.USE_MOCK) return MockAPI.createProject(data);
-    return this._post('/api/v1/projects', data);
-  },
-
-  // ── Phase Lifecycle ──
-  async triggerPhase(projectId, phaseId) {
-    if (CONFIG.USE_MOCK) return MockAPI.triggerPhase(projectId, phaseId);
-    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/trigger`);
-  },
-  async approvePhase(projectId, phaseId) {
-    if (CONFIG.USE_MOCK) return MockAPI.approvePhase(projectId, phaseId);
-    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/approve`);
-  },
-  async rejectPhase(projectId, phaseId) {
-    if (CONFIG.USE_MOCK) return MockAPI.rejectPhase(projectId, phaseId);
-    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/reject`);
-  },
-  async regeneratePhase(projectId, phaseId, additionalReq) {
-    if (CONFIG.USE_MOCK) return MockAPI.regeneratePhase(projectId, phaseId, additionalReq);
-    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/regenerate`, { additional_requirements: additionalReq });
-  },
-
-  // ── Chat (legacy) ──
-  async sendChat(projectId, phaseId, message) {
-    if (CONFIG.USE_MOCK) return MockAPI.sendChat(projectId, phaseId, message);
-    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/chat`, { message });
-  },
-  async sendFreeChat(message) {
-    if (CONFIG.USE_MOCK) return MockAPI.sendFreeChat(message);
-    return this._post('/api/v1/ai/chat', { message });
-  },
-
-  // ── Admin: AI Configuration ──
+  // ══════════════════════════════════════════════════════
+  //  ADMIN — ✅ 已完成，永远走后端
+  // ══════════════════════════════════════════════════════
   async getAIConfig() {
     return this._get('/admin/ai-config');
   },
@@ -102,10 +85,8 @@ const API = {
   },
 
   // ══════════════════════════════════════════════════════
-  //  NEW: Agents + SSE Streaming
+  //  CHAT / AGENTS — ✅ 已完成，永远走后端
   // ══════════════════════════════════════════════════════
-
-  /** Fetch available agents list */
   async getAgents() {
     const res = await fetch(CONFIG.getBaseUrl() + '/chat/agents', {
       headers: this._headers()
@@ -115,17 +96,6 @@ const API = {
     return data.agents || data;
   },
 
-  /**
-   * SSE streaming via OpenAI-compatible Chat Completions (text only).
-   * @param {Object} opts
-   * @param {string} opts.model - Agent / model ID
-   * @param {Array}  opts.messages - [{role, content}]
-   * @param {string} opts.user - Session key for isolation
-   * @param {AbortSignal} opts.signal
-   * @param {Function} opts.onDelta(text) - Incremental text
-   * @param {Function} opts.onDone(fullText) - Stream complete
-   * @param {Function} opts.onError(err)
-   */
   async streamChat({ model, messages, user, signal, onDelta, onDone, onError }) {
     try {
       const res = await fetch(CONFIG.getBaseUrl() + '/chat/openai/chat/completions', {
@@ -157,17 +127,6 @@ const API = {
     }
   },
 
-  /**
-   * SSE streaming via Responses API (supports file/image input).
-   * @param {Object} opts
-   * @param {string} opts.model
-   * @param {Array}  opts.input - Responses API input array
-   * @param {string} opts.user
-   * @param {AbortSignal} opts.signal
-   * @param {Function} opts.onDelta(text)
-   * @param {Function} opts.onDone(fullText)
-   * @param {Function} opts.onError(err)
-   */
   async streamResponses({ model, input, user, signal, onDelta, onDone, onError }) {
     try {
       const res = await fetch(CONFIG.getBaseUrl() + '/chat/responses', {
@@ -186,13 +145,11 @@ const API = {
       }
       await this._consumeSSE(res, {
         onData(parsed) {
-          // Responses API events
           if (parsed?.type === 'response.output_text.delta' && parsed.delta) {
             onDelta(parsed.delta);
           } else if (parsed?.type === 'response.completed' || parsed?.type === 'response.done') {
             return 'stop';
           }
-          // OpenAI compat fallback (in case proxy normalizes)
           const cd = parsed?.choices?.[0]?.delta?.content;
           if (cd) onDelta(cd);
           if (parsed?.choices?.[0]?.finish_reason === 'stop') return 'stop';
@@ -206,7 +163,6 @@ const API = {
     }
   },
 
-  /** Generic SSE consumer — parses ReadableStream line-by-line */
   async _consumeSSE(response, { onData, onDone, onError }) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -218,7 +174,7 @@ const API = {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // incomplete line stays in buffer
+        buffer = lines.pop();
         for (const line of lines) {
           const t = line.trim();
           if (!t || t.startsWith(':') || t.startsWith('event:')) continue;
@@ -228,18 +184,67 @@ const API = {
             const parsed = JSON.parse(t.slice(6));
             if (parsed.error) { onError?.(new Error(parsed.error.message || JSON.stringify(parsed.error))); return; }
             const result = onData(parsed);
-            // Track cumulative text
             const d = parsed?.choices?.[0]?.delta?.content || (typeof parsed?.delta === 'string' ? parsed.delta : '');
             if (d) fullText += d;
             if (result === 'stop') { onDone?.(fullText); return; }
-          } catch (_) { /* skip malformed JSON */ }
+          } catch (_) {}
         }
       }
-      // Stream ended naturally (no [DONE])
       onDone?.(fullText);
     } catch (e) {
       if (e.name !== 'AbortError') onError?.(e);
     }
+  },
+
+  // ══════════════════════════════════════════════════════
+  //  PROJECTS / TEMPLATES / PHASES — ❌ Mock（后端未完成）
+  // ══════════════════════════════════════════════════════
+  async getTemplateTypes() {
+    if (CONFIG.MOCK.templates) return MockAPI.getTemplateTypes();
+    return this._get('/api/v1/templates/types');
+  },
+  async getTemplatePhases(typeKey) {
+    if (CONFIG.MOCK.templates) return MockAPI.getTemplatePhases(typeKey);
+    return this._get(`/api/v1/templates/types/${typeKey}/phases`);
+  },
+
+  async getProjects() {
+    if (CONFIG.MOCK.projects) return MockAPI.getProjects();
+    return this._get('/projects');
+  },
+  async getProject(id) {
+    if (CONFIG.MOCK.projects) return MockAPI.getProject(id);
+    return this._get(`/projects/${id}`);
+  },
+  async createProject(data) {
+    if (CONFIG.MOCK.projects) return MockAPI.createProject(data);
+    return this._post('/projects', data);
+  },
+
+  async triggerPhase(projectId, phaseId) {
+    if (CONFIG.MOCK.phases) return MockAPI.triggerPhase(projectId, phaseId);
+    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/trigger`);
+  },
+  async approvePhase(projectId, phaseId) {
+    if (CONFIG.MOCK.phases) return MockAPI.approvePhase(projectId, phaseId);
+    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/approve`);
+  },
+  async rejectPhase(projectId, phaseId) {
+    if (CONFIG.MOCK.phases) return MockAPI.rejectPhase(projectId, phaseId);
+    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/reject`);
+  },
+  async regeneratePhase(projectId, phaseId, additionalReq) {
+    if (CONFIG.MOCK.phases) return MockAPI.regeneratePhase(projectId, phaseId, additionalReq);
+    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/regenerate`, { additional_requirements: additionalReq });
+  },
+
+  async sendChat(projectId, phaseId, message) {
+    if (CONFIG.MOCK.phases) return MockAPI.sendChat(projectId, phaseId, message);
+    return this._post(`/api/v1/projects/${projectId}/phases/${phaseId}/chat`, { message });
+  },
+  async sendFreeChat(message) {
+    if (CONFIG.MOCK.phases) return MockAPI.sendFreeChat(message);
+    return this._post('/api/v1/ai/chat', { message });
   },
 
   // ── HTTP Helpers ──
@@ -287,7 +292,6 @@ const RequestLog = {
   onEntry(fn) { this._listeners.push(fn); return () => { this._listeners = this._listeners.filter(f => f !== fn); }; },
 };
 
-// Monkey-patch fetch to log requests (non-intrusive)
 const _origFetch = window.fetch;
 window.fetch = async function(url, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
@@ -303,18 +307,13 @@ window.fetch = async function(url, opts = {}) {
     error: null,
     isSSE: false,
   };
-
-  // Sanitize auth header for display
   if (logEntry.requestHeaders['Authorization']) {
     const token = logEntry.requestHeaders['Authorization'];
     logEntry.requestHeaders['Authorization'] = token.slice(0, 15) + '...' + token.slice(-6);
   }
-
-  // Parse request body
   if (opts.body && typeof opts.body === 'string') {
     try { logEntry.requestBody = JSON.parse(opts.body); } catch(_) { logEntry.requestBody = opts.body.slice(0, 500); }
   }
-
   logEntry.isSSE = (opts.headers?.['Accept'] || '').includes('text/event-stream');
 
   const startTime = performance.now();
@@ -323,16 +322,10 @@ window.fetch = async function(url, opts = {}) {
     logEntry.duration = Math.round(performance.now() - startTime);
     logEntry.status = response.status;
     logEntry.statusText = response.statusText;
-    // Capture response headers
     response.headers.forEach((v, k) => { logEntry.responseHeaders[k] = v; });
-
-    // For non-SSE responses, capture body (clone to not consume)
     if (!logEntry.isSSE && response.headers.get('content-type')?.includes('json')) {
       const clone = response.clone();
-      clone.json().then(data => {
-        logEntry.responseBody = data;
-        RequestLog.add(logEntry);
-      }).catch(() => { RequestLog.add(logEntry); });
+      clone.json().then(data => { logEntry.responseBody = data; RequestLog.add(logEntry); }).catch(() => { RequestLog.add(logEntry); });
     } else {
       if (logEntry.isSSE) logEntry.responseBody = '(SSE stream)';
       RequestLog.add(logEntry);

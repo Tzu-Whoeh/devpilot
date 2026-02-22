@@ -6,9 +6,10 @@ const MockAPI = {
     await this._delay(500);
     if (!username || !password) throw new Error('请输入用户名和密码');
     if (password.length < 3) throw new Error('密码错误');
+    const isAdmin = username.toLowerCase() === 'admin';
     return {
       token: 'mock_jwt_' + Date.now(),
-      user: { id: 'u_' + username, username, email: username + '@devpilot.ai' },
+      user: { id: 'u_' + username, username, email: username + '@devpilot.ai', role: isAdmin ? 'admin' : 'user', is_active: true },
       expires_at: new Date(Date.now() + 86400000).toISOString()
     };
   },
@@ -19,7 +20,7 @@ const MockAPI = {
     if (!password || password.length < 8) throw new Error('密码至少8个字符');
     return {
       token: 'mock_jwt_' + Date.now(),
-      user: { id: 'u_' + username, username, email: email || username + '@devpilot.ai' },
+      user: { id: 'u_' + username, username, email: email || username + '@devpilot.ai', role: 'user', is_active: true },
       expires_at: new Date(Date.now() + 86400000).toISOString()
     };
   },
