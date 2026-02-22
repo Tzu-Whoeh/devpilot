@@ -250,11 +250,7 @@ const SettingsPage = {
     AppState.remove('chat_active');
     AppState.remove('chat_expanded');
     AppState.remove('free_chat');
-    if (typeof ChatPage !== 'undefined') {
-      ChatPage._sessions = {};
-      ChatPage._activeSession = null;
-      Shell.renderChatTree();
-    }
+    // v5.0: ChatPage no longer manages sessions; also clear custom prompts if desired
     Shell.toast('对话历史已清空', 'info');
     this.render();
   },

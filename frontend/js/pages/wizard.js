@@ -4,8 +4,8 @@
  *   Step 1: 选择任务类型
  *   Step 2: 命名启动 → 创建项目
  *   Phase A: AI-PM 项目启动访谈（3-5轮）→ 启动报告 → 确认
- *   Phase B: AI-BA 需求分析访谈（3-8轮）→ 生成 PRD
- *   Phase C: PRD 多角色 Review（AI-Arch/AI-QA/AI-PM）→ 展示结果 → 确认
+ *   Phase B: AI-BA 需求分析访谈（3-8轮）→ 生成初步需求摘要
+ *   Phase C: 需求摘要多角色 Review（AI-Arch/AI-QA/AI-PM）→ 展示结果 → 确认
  *
  * Uses existing ClawAPI chat infrastructure (API.streamChat) with
  * role-specific session keys for conversation context.
@@ -104,12 +104,12 @@ ${pmReport}
    - UI/UX 偏好和参考
    - 验收标准
 3. 每轮问 1-2 个具体问题，逐步深入
-4. 当需求信息充分时，生成 PRD 文档
+4. 当需求信息充分时，生成初步需求摘要文档
 
-PRD 生成格式要求：
-当你准备生成 PRD 时，用以下标记包裹：
-[PRD_START]
-# 产品需求文档 (PRD)
+初步需求摘要生成格式要求：
+当你准备生成需求摘要时，用以下标记包裹：
+[REQUIREMENTS_SUMMARY_START]
+# 初步需求摘要
 
 ## 1. 产品概述
 （产品定义、愿景、目标）
@@ -144,7 +144,7 @@ PRD 生成格式要求：
 
 ## 9. 附录
 （术语表、参考资料）
-[PRD_END]
+[REQUIREMENTS_SUMMARY_END]
 
 现在开始需求分析访谈。基于项目启动报告，你已经有了基本了解，直接问更深入的需求问题。每次回复简洁有力。`;
   },
@@ -166,11 +166,11 @@ PRD 生成格式要求：
       },
     };
     const guide = roleGuides[role];
-    return `你是 ${role}，请从「${guide.focus}」角度审查以下 PRD 文档。
+    return `你是 ${role}，请从「${guide.focus}」角度审查以下初步需求摘要文档。
 
 审查要点：${guide.points}
 
-PRD 内容如下：
+需求摘要内容如下：
 ---
 ${prdContent}
 ---
@@ -315,7 +315,7 @@ ${prdContent}
     const phases = [
       { icon: '📋', label: 'AI-PM 项目访谈' },
       { icon: '📊', label: 'AI-BA 需求分析' },
-      { icon: '🔍', label: 'PRD 多角色审查' },
+      { icon: '🔍', label: '需求摘要多角色审查' },
     ];
     return `
       <div class="interview-progress">
@@ -357,7 +357,7 @@ ${prdContent}
         <div class="interview-header-icon">📊</div>
         <div>
           <div class="interview-header-title">AI-BA 需求分析访谈</div>
-          <div class="interview-header-sub">AI 业务分析师将深入挖掘需求细节，生成 PRD 文档</div>
+          <div class="interview-header-sub">AI 业务分析师将深入挖掘需求细节，生成初步需求摘要</div>
         </div>
       </div>
       <div class="interview-messages" id="interviewMessages">
@@ -380,13 +380,13 @@ ${prdContent}
       <div class="interview-header">
         <div class="interview-header-icon">🔍</div>
         <div>
-          <div class="interview-header-title">PRD 多角色审查</div>
-          <div class="interview-header-sub">AI-Arch / AI-QA / AI-PM 三角色并行审查 PRD</div>
+          <div class="interview-header-title">需求摘要多角色审查</div>
+          <div class="interview-header-sub">AI-Arch / AI-QA / AI-PM 三角色并行审查初步需求摘要</div>
         </div>
       </div>
       <div class="review-content">
         <div class="review-prd-preview">
-          <div class="review-prd-title">📄 PRD 文档预览</div>
+          <div class="review-prd-title">📄 初步需求摘要预览</div>
           <div class="review-prd-body">${this._renderMarkdown(this._prdContent || '')}</div>
         </div>
         <div class="review-cards">
@@ -423,10 +423,10 @@ ${prdContent}
         ${allDone ? `
           <div class="review-actions">
             <button class="btn btn-primary btn-lg" onclick="WizardPage.confirmPRD()">
-              ✅ 确认 PRD，进入项目
+              ✅ 确认需求摘要，进入项目
             </button>
             <button class="btn btn-secondary" onclick="WizardPage.revisePRD()">
-              🔄 让 AI-BA 修改 PRD
+              🔄 让 AI-BA 修改需求摘要
             </button>
           </div>
         ` : ''}
@@ -468,7 +468,7 @@ ${prdContent}
         </div>
         ${canGenerate ? `
           <button class="btn btn-accent interview-generate-btn" onclick="WizardPage.requestGenerate('${phase}')">
-            ✨ 信息足够了，生成 ${phase === 'ba' ? 'PRD' : '报告'}
+            ✨ 信息足够了，生成 ${phase === 'ba' ? '需求摘要' : '报告'}
           </button>
         ` : ''}
       </div>
@@ -497,7 +497,7 @@ ${prdContent}
   _renderPRDConfirm() {
     return `
       <div class="interview-report">
-        <div class="interview-report-title">📄 PRD 文档</div>
+        <div class="interview-report-title">📄 初步需求摘要</div>
         <div class="interview-report-body">${this._renderMarkdown(this._prdContent)}</div>
         <div class="interview-report-actions">
           <button class="btn btn-primary btn-lg" onclick="WizardPage.startReview()">
@@ -674,7 +674,7 @@ ${prdContent}
     const messages = phase === 'pm' ? this._pmMessages : this._baMessages;
     const prompt = phase === 'pm'
       ? '请根据以上访谈内容，现在生成项目启动报告。'
-      : '请根据以上访谈内容，现在生成 PRD 文档。';
+      : '请根据以上访谈内容，现在生成初步需求摘要文档。';
     const icon = phase === 'pm' ? '📋' : '📊';
     const sender = phase === 'pm' ? 'AI-PM' : 'AI-BA';
     const sessionKey = phase === 'pm'
@@ -780,7 +780,7 @@ ${prdContent}
   },
 
   async startReview() {
-    Shell.toast('提交 PRD 审查中...', 'info');
+    Shell.toast('提交需求摘要审查中...', 'info');
     this._phase = 'prd_review';
     this._reviewResults = {};
     this._renderInterviewPhase();
@@ -848,7 +848,7 @@ ${prdContent}
   },
 
   async confirmPRD() {
-    Shell.toast('PRD 已确认！即将进入项目工作台...', 'success');
+    Shell.toast('需求摘要已确认！即将进入项目工作台...', 'success');
     // Navigate to project workspace
     setTimeout(() => {
       Router.navigate('/projects/' + this._projectId);
@@ -863,11 +863,11 @@ ${prdContent}
     this._prdContent = null;
     this._baMessages.push({
       role: 'user',
-      text: '根据审查意见，PRD 需要修改。以下是审查反馈：\n' +
+      text: '根据审查意见，需求摘要需要修改。以下是审查反馈：\n' +
         Object.entries(this._reviewResults).map(([role, r]) =>
           `${role}: ${r.conclusion} — ${r.summary}`
         ).join('\n') +
-        '\n\n请根据以上反馈修改 PRD。'
+        '\n\n请根据以上反馈修改需求摘要。'
     });
     this._reviewResults = {};
     this._renderInterviewPhase();
@@ -912,14 +912,15 @@ ${prdContent}
   },
 
   _extractPRD(text) {
-    const startTag = '[PRD_START]';
-    const endTag = '[PRD_END]';
+    // Note: method name kept as _extractPRD for backward compat, but markers changed per spec §3.3
+    const startTag = '[REQUIREMENTS_SUMMARY_START]';
+    const endTag = '[REQUIREMENTS_SUMMARY_END]';
     const startIdx = text.indexOf(startTag);
     const endIdx = text.indexOf(endTag);
     if (startIdx !== -1 && endIdx !== -1) {
       const prd = text.substring(startIdx + startTag.length, endIdx).trim();
       const clean = text.substring(0, startIdx).trim();
-      return { clean: clean || 'PRD 文档已生成，请查看下方内容：', prd };
+      return { clean: clean || '初步需求摘要已生成，请查看下方内容：', prd };
     }
     return { clean: text, prd: null };
   },
