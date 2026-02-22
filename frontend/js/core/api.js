@@ -98,7 +98,7 @@ const API = {
 
   async streamChat({ model, messages, user, signal, onDelta, onDone, onError }) {
     try {
-      const res = await fetch(CONFIG.getBaseUrl() + '/chat/openai/chat/completions', {
+      const res = await fetch(CONFIG.getBaseUrl() + '/chat/chat/completions', {
         method: 'POST',
         headers: {
           ...this._headers(),

@@ -36,8 +36,22 @@ from sqlalchemy.orm import DeclarativeBase
 logger = structlog.get_logger()
 
 # ---------------------------------------------------------------------------
-# Config
+# Config — load .env file if present
 # ---------------------------------------------------------------------------
+
+# Load .env from same directory as main.py
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for line in _env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:  # Don't override existing env vars
+                os.environ[key] = value
 
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "RS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
@@ -491,9 +505,8 @@ async def public_key_pem():
 #
 # Path mapping: /chat/{path} → ClawAPI /v1/{path}
 #   /chat/agents                → /v1/agents
-#   /chat/openai/chat/completions → /v1/openai/chat/completions
-#   /chat/responses             → /v1/responses
 #   /chat/chat/completions      → /v1/chat/completions
+#   /chat/responses             → /v1/responses
 # ---------------------------------------------------------------------------
 
 @app.api_route("/chat/{path:path}", methods=["GET", "POST", "PUT", "DELETE"],
@@ -711,7 +724,7 @@ async def ai_chat(req: ChatRequest, user: User = Depends(get_current_user), db: 
         prompt = prompt + ' Current project: ' + ctx.get('name', '')
     
     try:
-        r = await _http_client.post('/api/v1/chat/completions',
+        r = await _http_client.post('/v1/chat/completions',
             headers={'X-API-Key': CLAWAPI_KEY},
             json={'model': 'default', 'message': prompt + ' User: ' + req.message},
             timeout=120.0)
