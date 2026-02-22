@@ -1,8 +1,14 @@
-/* ═══ Chat Page v3.0 — Sidebar-integrated + SSE + File Upload ═══ */
+/* ═══ Chat Page v3.1 — Optimized: Dynamic Agents, SSE Events, Stop Button ═══
+ *
+ * Changelog v3.1 (UX-DEVPILOT-CHAT-001):
+ *   Task-1: Fix Responses API file upload format (source object)
+ *   Task-2: Session management — use server-side context via `user` field
+ *   Task-4: Add stop-generation button
+ *   Task-5: Dynamic agent list from server (remove hardcoded icons)
+ */
 const ChatPage = {
   // ── State ──
   _agents: {},
-  _agentIcons: { main:'📎', coder:'💻', pm:'📋', ba:'📊', architect:'🏗️', 'investment-assistant':'💰' },
   _sessions: {},
   _activeSession: null,
   _expandedAgents: {},
@@ -15,6 +21,28 @@ const ChatPage = {
     '你好','hi','hello','hey','嗨','在吗','在不在','在','您好','哈喽',
     'hola','yo','sup','嘿','请问','你好呀','hi there','hello there'
   ]),
+
+  // ══════════════════════════════════════════════════════
+  //  Task-5: Dynamic agent icon mapping (replaces hardcoded _agentIcons)
+  // ══════════════════════════════════════════════════════
+  _getAgentIcon(agentId, agentData) {
+    // Priority 1: server-provided icon field
+    if (agentData?.icon) return agentData.icon;
+    // Priority 2: keyword-based smart mapping
+    const id = (agentId || '').toLowerCase();
+    if (id.includes('code') || id.includes('dev') || id === 'coder') return '💻';
+    if (id.includes('pm') || id.includes('manage')) return '📋';
+    if (id.includes('ba') || id.includes('analy')) return '📊';
+    if (id.includes('arch')) return '🏗️';
+    if (id.includes('qa') || id.includes('test')) return '✅';
+    if (id.includes('ops') || id.includes('deploy')) return '🚀';
+    if (id.includes('write') || id.includes('doc')) return '✍️';
+    if (id.includes('invest') || id.includes('financ')) return '💰';
+    if (id.includes('review')) return '🔍';
+    if (id === 'main' || id.includes('general') || id.includes('assist')) return '📎';
+    // Priority 3: default
+    return '🤖';
+  },
 
   // ══════════════════════════════════════════════════════
   //  INIT (called once on app boot, loads agents for sidebar)
@@ -78,6 +106,19 @@ const ChatPage = {
     }
   },
 
+  /** Task-5: Refresh agents from server */
+  async refreshAgents() {
+    try {
+      this._agents = await API.getAgents();
+      Shell.renderChatTree();
+      if (document.getElementById('chatAgentPicker')) this.showAgentPicker();
+      Shell.toast('Agent 列表已刷新', 'success');
+    } catch (e) {
+      console.error('Agent refresh failed:', e);
+      Shell.toast('刷新失败: ' + e.message, 'error');
+    }
+  },
+
   // ══════════════════════════════════════════════════════
   //  SIDEBAR TREE (rendered inside Shell sidebar)
   // ══════════════════════════════════════════════════════
@@ -92,17 +133,18 @@ const ChatPage = {
     }
 
     let html = '';
+    // Render agents from server list
     for (const [agentId, agent] of Object.entries(this._agents)) {
       const sessions = grouped[agentId] || [];
       const expanded = this._expandedAgents[agentId] || sessions.some(s => s.id === this._activeSession);
-      const icon = this._agentIcons[agentId] || '🤖';
+      const icon = this._getAgentIcon(agentId, agent);
       const count = sessions.length;
       html += `
         <div class="sb-agent-node ${expanded ? 'expanded' : ''}" data-agent="${_esc(agentId)}">
           <div class="sb-agent-header" onclick="ChatPage.toggleAgent('${_esc(agentId)}')">
             <span class="sb-agent-arrow">▶</span>
             <span class="sb-agent-icon">${icon}</span>
-            <span class="sb-agent-name">${_esc(agent.name)}</span>
+            <span class="sb-agent-name">${_esc(agent.name || agentId)}</span>
             ${count ? `<span class="sb-agent-badge">${count}</span>` : ''}
           </div>
           <div class="sb-session-list">
@@ -117,6 +159,32 @@ const ChatPage = {
         </div>
       `;
     }
+
+    // Task-5: Show orphaned sessions (agent removed from server)
+    for (const [agentId, sessions] of Object.entries(grouped)) {
+      if (this._agents[agentId]) continue;
+      const expanded = this._expandedAgents[agentId] || sessions.some(s => s.id === this._activeSession);
+      html += `
+        <div class="sb-agent-node ${expanded ? 'expanded' : ''}" data-agent="${_esc(agentId)}">
+          <div class="sb-agent-header" onclick="ChatPage.toggleAgent('${_esc(agentId)}')" style="opacity:0.5" title="此 Agent 已不在服务端列表中">
+            <span class="sb-agent-arrow">▶</span>
+            <span class="sb-agent-icon">🤖</span>
+            <span class="sb-agent-name">${_esc(agentId)} <small>(已移除)</small></span>
+            <span class="sb-agent-badge">${sessions.length}</span>
+          </div>
+          <div class="sb-session-list">
+            ${sessions.map(s => `
+              <div class="sb-session-item ${s.id === this._activeSession ? 'active' : ''}"
+                   onclick="ChatPage.openSession('${s.id}')" data-sid="${s.id}">
+                <span class="sb-session-title">${_esc(s.title || '新对话')}</span>
+                <span class="sb-session-del" onclick="event.stopPropagation();ChatPage.deleteSession('${s.id}')" title="删除">✕</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     container.innerHTML = html;
   },
 
@@ -131,20 +199,26 @@ const ChatPage = {
   },
 
   // ══════════════════════════════════════════════════════
-  //  AGENT PICKER MODAL
+  //  AGENT PICKER MODAL (Task-5: dynamic icons + refresh)
   // ══════════════════════════════════════════════════════
   showAgentPicker() {
     document.getElementById('chatAgentPicker')?.remove();
     let html = `<div class="chat-agent-picker" id="chatAgentPicker" onclick="if(event.target===this)this.remove()">
       <div class="chat-agent-picker-inner">
-        <h3>选择 Agent 开始新对话</h3>
+        <div class="chat-agent-picker-header">
+          <h3>选择 Agent 开始新对话</h3>
+          <button class="chat-agent-refresh-btn" onclick="event.stopPropagation();ChatPage.refreshAgents()" title="刷新 Agent 列表">🔄</button>
+        </div>
         <div class="chat-agent-picker-list">`;
     for (const [id, a] of Object.entries(this._agents)) {
-      const icon = this._agentIcons[id] || '🤖';
+      const icon = this._getAgentIcon(id, a);
       html += `<div class="chat-agent-picker-item" onclick="ChatPage.pickAgent('${_esc(id)}')">
         <span class="ap-icon">${icon}</span>
-        <div class="ap-info"><div class="ap-name">${_esc(a.name)}</div><div class="ap-desc">${_esc(a.description)}</div></div>
+        <div class="ap-info"><div class="ap-name">${_esc(a.name || id)}</div><div class="ap-desc">${_esc(a.description || '')}</div></div>
       </div>`;
+    }
+    if (Object.keys(this._agents).length === 0) {
+      html += `<div style="text-align:center;color:var(--text-dim);padding:var(--space-lg)">暂无可用 Agent，请检查 AI Gateway 连接</div>`;
     }
     html += `</div></div></div>`;
     document.body.insertAdjacentHTML('beforeend', html);
@@ -173,7 +247,6 @@ const ChatPage = {
     this._activeSession = sid;
     this._attachments = [];
     this._saveState();
-    // Navigate to chat page if not already there
     if (Router.current !== '/chat') {
       Router.navigate('/chat');
     } else {
@@ -195,7 +268,7 @@ const ChatPage = {
   },
 
   // ══════════════════════════════════════════════════════
-  //  MESSAGE RENDERING
+  //  MESSAGE RENDERING (Task-5: dynamic icons)
   // ══════════════════════════════════════════════════════
   _renderMessages() {
     const el = document.getElementById('chatMsgs');
@@ -203,7 +276,7 @@ const ChatPage = {
     const session = this._sessions[this._activeSession];
     if (!session || session.messages.length === 0) {
       const agent = this._agents[session?.agentId] || {};
-      const icon = this._agentIcons[session?.agentId] || '🤖';
+      const icon = this._getAgentIcon(session?.agentId, agent);
       el.innerHTML = `<div class="chat-welcome">
         <div class="chat-welcome-icon">${session ? icon : '🤖'}</div>
         <h2>${session ? _esc(agent.name || 'AI 助手') : 'DevPilot AI 助手'}</h2>
@@ -218,7 +291,8 @@ const ChatPage = {
   _renderMsg(m) {
     const isAI = m.role === 'ai';
     const session = this._sessions[this._activeSession];
-    const icon = this._agentIcons[session?.agentId] || '🤖';
+    const agent = this._agents[session?.agentId] || {};
+    const icon = this._getAgentIcon(session?.agentId, agent);
     let attachHtml = '';
     if (m.attachments?.length) {
       attachHtml = m.attachments.map(a => {
@@ -233,7 +307,7 @@ const ChatPage = {
   },
 
   // ══════════════════════════════════════════════════════
-  //  SEND MESSAGE (SSE)
+  //  SEND MESSAGE (Task-1: file format, Task-2: no history)
   // ══════════════════════════════════════════════════════
   async send() {
     if (this._sending) return;
@@ -266,7 +340,8 @@ const ChatPage = {
     if (welcome) welcome.remove();
     msgsEl?.insertAdjacentHTML('beforeend', this._renderMsg(userMsg));
 
-    const agentIcon = this._agentIcons[session.agentId] || '🤖';
+    const agent = this._agents[session.agentId] || {};
+    const agentIcon = this._getAgentIcon(session.agentId, agent);
     msgsEl?.insertAdjacentHTML('beforeend', `<div class="chat-full-msg ai" id="chatTyping">
       <div class="chat-full-avatar">${agentIcon}</div>
       <div class="chat-full-bubble typing-cursor" id="chatStreamTarget"></div>
@@ -289,6 +364,7 @@ const ChatPage = {
       session.messages.push({ role: 'ai', text: fullText, time: new Date().toISOString() });
       this._saveState();
       this._sending = false;
+      this._abortCtrl = null;
       this._updateSendBtn();
       this._scrollBottom();
     };
@@ -300,35 +376,43 @@ const ChatPage = {
           <div class="chat-full-bubble">${this._renderMarkdown(fullText)}<br><em style="color:var(--warning)">⚠ 回复不完整</em></div>
         </div>`);
         session.messages.push({ role: 'ai', text: fullText + '\n\n⚠ 回复不完整', time: new Date().toISOString() });
-      } else {
+      } else if (err?.name !== 'AbortError') {
         Shell.toast('AI 回复失败: ' + err.message, 'error');
       }
       this._saveState();
       this._sending = false;
+      this._abortCtrl = null;
       this._updateSendBtn();
     };
 
     try {
       if (attachments.length > 0) {
+        // ── Task-1: Fixed Responses API file upload format ──
         const inputArr = [];
         if (text) inputArr.push({ type: 'message', role: 'user', content: text });
         for (const att of attachments) {
           if (att.isImage) {
-            inputArr.push({ type: 'message', role: 'user', content: [{ type: 'input_image', image_url: att.dataUrl }] });
+            inputArr.push({
+              type: 'input_image',
+              source: { type: 'base64', media_type: att.type || 'image/jpeg', data: att.base64 }
+            });
           } else {
-            inputArr.push({ type: 'message', role: 'user', content: [{ type: 'input_file', filename: att.name, file_data: att.base64 }] });
+            inputArr.push({
+              type: 'input_file',
+              source: { type: 'base64', media_type: att.type || 'application/octet-stream', data: att.base64, filename: att.name }
+            });
           }
         }
-        const historyInput = this._buildHistoryForResponses(session, 10);
-        await API.streamResponses({ model: session.agentId, input: [...historyInput, ...inputArr], user: this._activeSession, signal: this._abortCtrl.signal, onDelta, onDone, onError });
+        // Task-2: Only send current input + user field (server maintains context)
+        await API.streamResponses({ model: session.agentId, input: inputArr, user: this._activeSession, signal: this._abortCtrl.signal, onDelta, onDone, onError });
       } else {
-        const messages = this._buildHistory(session, 20);
-        messages.push({ role: 'user', content: text });
-        await API.streamChat({ model: session.agentId, messages, user: this._activeSession, signal: this._abortCtrl.signal, onDelta, onDone, onError });
+        // Task-2: Only send current message + user field (no history)
+        await API.streamChat({ model: session.agentId, message: text, user: this._activeSession, signal: this._abortCtrl.signal, onDelta, onDone, onError });
       }
     } catch (e) { onError(e); }
   },
 
+  // Task-2: Keep history builders as fallback (not called by default)
   _buildHistory(session, maxTurns) {
     return session.messages.slice(-(maxTurns * 2)).filter(m => m.text && !m.attachments?.length).map(m => ({
       role: m.role === 'ai' ? 'assistant' : 'user', content: m.text,
@@ -434,9 +518,34 @@ const ChatPage = {
   },
 
   // ══════════════════════════════════════════════════════
-  //  HELPERS
+  //  HELPERS (Task-4: stop button)
   // ══════════════════════════════════════════════════════
-  _updateSendBtn() { const b = document.getElementById('chatSendBtn'); if (b) b.disabled = this._sending; },
+  _updateSendBtn() {
+    const b = document.getElementById('chatSendBtn');
+    if (!b) return;
+    if (this._sending) {
+      b.classList.add('stop-mode');
+      b.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+      b.onclick = () => this.stopGeneration();
+      b.disabled = false;
+      b.title = '停止生成';
+    } else {
+      b.classList.remove('stop-mode');
+      b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+      b.onclick = () => this.send();
+      b.disabled = false;
+      b.title = '发送';
+    }
+  },
+
+  /** Task-4: Stop generation */
+  stopGeneration() {
+    if (this._abortCtrl) {
+      this._abortCtrl.abort();
+      this._abortCtrl = null;
+    }
+  },
+
   _scrollBottom() { const el = document.getElementById('chatMsgs'); if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; }); },
   _uuid() { return 'xxxx-xxxx'.replace(/x/g, () => ((Math.random() * 16) | 0).toString(16)); },
   _fmtTime(iso) { if (!iso) return ''; const d = new Date(iso), n = new Date(); return d.toDateString() === n.toDateString() ? d.toTimeString().slice(0, 5) : (d.getMonth()+1)+'/'+d.getDate(); },

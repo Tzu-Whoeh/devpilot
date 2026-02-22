@@ -1,7 +1,9 @@
-/* ═══ API Client — Module-level Mock Switch ═══
+/* ═══ API Client v3.1 — Module-level Mock Switch ═══
  *
- * 已完成的模块直接走真实后端，不再 mock。
- * 只有尚未完成的模块使用 Mock 数据。
+ * Changelog v3.1 (UX-DEVPILOT-CHAT-001):
+ *   Task-2: streamChat accepts single message instead of full history
+ *   Task-3: SSE event parser handles Responses API event types
+ *   Task-5: getAgents normalizes response data
  *
  * 模块状态:
  *   auth     ✅ 已完成 — 永远走后端
@@ -87,17 +89,44 @@ const API = {
   // ══════════════════════════════════════════════════════
   //  CHAT / AGENTS — ✅ 已完成，永远走后端
   // ══════════════════════════════════════════════════════
+
+  /** Task-5: Get agents with normalized response */
   async getAgents() {
     const res = await fetch(CONFIG.getBaseUrl() + '/chat/agents', {
       headers: this._headers()
     });
     if (!res.ok) throw new Error(`获取 Agent 列表失败: ${res.status}`);
     const data = await res.json();
-    return data.agents || data;
+    const agents = data.agents || data;
+    // Normalize: ensure each agent value is an object with at least {name, description}
+    for (const [id, info] of Object.entries(agents)) {
+      if (typeof info === 'string') {
+        agents[id] = { name: info, description: '' };
+      } else if (info && typeof info === 'object') {
+        if (!info.name) info.name = id;
+        if (!info.description) info.description = '';
+      }
+    }
+    return agents;
   },
 
-  async streamChat({ model, messages, user, signal, onDelta, onDone, onError }) {
+  /**
+   * Task-2: streamChat — sends only the current message + user field.
+   * Server maintains conversation context via the `user` identifier.
+   *
+   * @param {Object} opts
+   * @param {string} opts.model - Agent ID
+   * @param {string} opts.message - Current user message text (single message, not array)
+   * @param {string} opts.user - Session identifier for server-side context
+   * @param {AbortSignal} opts.signal
+   * @param {Function} opts.onDelta - Called with (deltaText) for each chunk
+   * @param {Function} opts.onDone - Called with (fullText) when complete
+   * @param {Function} opts.onError - Called with (Error) on failure
+   */
+  async streamChat({ model, message, messages, user, signal, onDelta, onDone, onError }) {
     try {
+      // Task-2: Build messages array — prefer single message, fallback to full array
+      const msgArray = messages || [{ role: 'user', content: message }];
       const res = await fetch(CONFIG.getBaseUrl() + '/chat/chat/completions', {
         method: 'POST',
         headers: {
@@ -105,28 +134,23 @@ const API = {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
         },
-        body: JSON.stringify({ model, messages, stream: true, user }),
+        body: JSON.stringify({ model, messages: msgArray, stream: true, user }),
         signal,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || err.detail || `HTTP ${res.status}`);
       }
-      await this._consumeSSE(res, {
-        onData(parsed) {
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (delta) onDelta(delta);
-          if (parsed?.choices?.[0]?.finish_reason === 'stop') return 'stop';
-          return null;
-        },
-        onDone, onError,
-      });
+      await this._consumeSSE(res, { onDelta, onDone, onError });
     } catch (e) {
       if (e.name === 'AbortError') return;
       onError?.(e);
     }
   },
 
+  /**
+   * Task-2: streamResponses — sends only current input + user field.
+   */
   async streamResponses({ model, input, user, signal, onDelta, onDone, onError }) {
     try {
       const res = await fetch(CONFIG.getBaseUrl() + '/chat/responses', {
@@ -143,31 +167,28 @@ const API = {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || err.detail || `HTTP ${res.status}`);
       }
-      await this._consumeSSE(res, {
-        onData(parsed) {
-          if (parsed?.type === 'response.output_text.delta' && parsed.delta) {
-            onDelta(parsed.delta);
-          } else if (parsed?.type === 'response.completed' || parsed?.type === 'response.done') {
-            return 'stop';
-          }
-          const cd = parsed?.choices?.[0]?.delta?.content;
-          if (cd) onDelta(cd);
-          if (parsed?.choices?.[0]?.finish_reason === 'stop') return 'stop';
-          return null;
-        },
-        onDone, onError,
-      });
+      await this._consumeSSE(res, { onDelta, onDone, onError });
     } catch (e) {
       if (e.name === 'AbortError') return;
       onError?.(e);
     }
   },
 
-  async _consumeSSE(response, { onData, onDone, onError }) {
+  /**
+   * Task-3: Unified SSE consumer — handles both Chat Completions and Responses API events.
+   *
+   * Supports:
+   *   - Chat Completions: data.choices[0].delta.content
+   *   - Responses API: event:response.output_text.delta → data.delta
+   *   - Responses API: event:response.output_text.done → data.text (complete)
+   *   - Responses API: event:response.completed → end
+   */
+  async _consumeSSE(response, { onDelta, onDone, onError }) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let fullText = '';
+    let currentEvent = '';  // Task-3: track SSE event type
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -177,16 +198,70 @@ const API = {
         buffer = lines.pop();
         for (const line of lines) {
           const t = line.trim();
-          if (!t || t.startsWith(':') || t.startsWith('event:')) continue;
+          if (!t || t.startsWith(':')) continue;
+
+          // Task-3: Track event type from `event:` lines
+          if (t.startsWith('event:')) {
+            currentEvent = t.slice(6).trim();
+            continue;
+          }
+
           if (t === 'data: [DONE]') { onDone?.(fullText); return; }
           if (!t.startsWith('data: ')) continue;
+
           try {
             const parsed = JSON.parse(t.slice(6));
-            if (parsed.error) { onError?.(new Error(parsed.error.message || JSON.stringify(parsed.error))); return; }
-            const result = onData(parsed);
-            const d = parsed?.choices?.[0]?.delta?.content || (typeof parsed?.delta === 'string' ? parsed.delta : '');
-            if (d) fullText += d;
-            if (result === 'stop') { onDone?.(fullText); return; }
+
+            // Error handling
+            if (parsed.error) {
+              onError?.(new Error(parsed.error.message || JSON.stringify(parsed.error)));
+              return;
+            }
+
+            let delta = '';
+            const evtType = currentEvent || parsed?.type || '';
+
+            // ── Responses API events ──
+            if (evtType === 'response.output_text.delta') {
+              delta = parsed.delta || '';
+            } else if (evtType === 'response.output_text.done') {
+              // Done event contains complete text; use it for final verification
+              if (parsed.text) fullText = parsed.text;
+              onDone?.(fullText);
+              return;
+            } else if (evtType === 'response.completed' || evtType === 'response.done') {
+              onDone?.(fullText);
+              return;
+            }
+            // ── Responses API: function call events (placeholder for Phase 2) ──
+            else if (evtType.startsWith('response.function_call_arguments')) {
+              // Future: handle function calling
+              // For now, skip silently
+            }
+            // ── Chat Completions format (fallback) ──
+            else {
+              const choice = parsed?.choices?.[0];
+              if (choice) {
+                delta = choice.delta?.content || '';
+                if (choice.finish_reason === 'stop') {
+                  if (delta) { fullText += delta; onDelta?.(delta); }
+                  onDone?.(fullText);
+                  return;
+                }
+              }
+              // Also handle bare delta field (some API variants)
+              if (!delta && typeof parsed?.delta === 'string') {
+                delta = parsed.delta;
+              }
+            }
+
+            if (delta) {
+              fullText += delta;
+              onDelta?.(delta);
+            }
+
+            // Reset event type after processing data line
+            currentEvent = '';
           } catch (_) {}
         }
       }

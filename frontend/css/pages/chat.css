@@ -1,4 +1,9 @@
-/* ═══ AI Chat Page v3.0 — Sidebar-integrated ═══ */
+/* ═══ AI Chat Page v3.1 — Sidebar-integrated ═══
+ *
+ * Changelog v3.1 (UX-DEVPILOT-CHAT-001):
+ *   Task-4: Stop generation button styles
+ *   Task-5: Agent picker header + refresh button
+ */
 
 /* ── Sidebar: Agent→Session tree (inside Shell sidebar) ── */
 .sidebar-divider {
@@ -142,11 +147,24 @@
 .chat-send-btn {
   width:44px; height:44px; border-radius:var(--radius); background:var(--gradient-1);
   border:none; color:#fff; cursor:pointer; display:flex; align-items:center;
-  justify-content:center; flex-shrink:0; transition:filter var(--duration);
+  justify-content:center; flex-shrink:0; transition:all var(--duration);
 }
 .chat-send-btn:hover { filter:brightness(1.1); }
 .chat-send-btn:disabled { opacity:0.4; cursor:not-allowed; filter:none; }
 .chat-send-btn svg { width:18px; height:18px; }
+
+/* ── Task-4: Stop generation button ── */
+.chat-send-btn.stop-mode {
+  background:var(--error, #ef4444);
+  animation:pulse-stop 1.5s ease-in-out infinite;
+}
+.chat-send-btn.stop-mode:hover {
+  filter:brightness(1.15);
+}
+@keyframes pulse-stop {
+  0%, 100% { box-shadow:0 0 0 0 rgba(239,68,68,0.3); }
+  50% { box-shadow:0 0 0 6px rgba(239,68,68,0); }
+}
 
 /* ── Markdown ── */
 .chat-full-msg.ai .chat-full-bubble code {
@@ -177,7 +195,7 @@
 }
 .chat-main.dragging .chat-drag-overlay { display:flex; }
 
-/* Agent picker modal */
+/* ── Agent picker modal ── */
 .chat-agent-picker {
   position:fixed; inset:0; z-index:1000; display:flex;
   align-items:center; justify-content:center;
@@ -189,6 +207,23 @@
   border-radius:var(--radius-lg); padding:var(--space-xl);
   width:380px; max-width:90vw; box-shadow:var(--shadow-lg);
 }
+/* Task-5: Header with refresh button */
+.chat-agent-picker-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:var(--space-md);
+}
+.chat-agent-picker-header h3 { margin:0; font-size:16px; }
+.chat-agent-refresh-btn {
+  width:32px; height:32px; border-radius:var(--radius-sm);
+  background:var(--bg-secondary); border:1px solid var(--border);
+  cursor:pointer; font-size:16px; display:flex; align-items:center;
+  justify-content:center; transition:all var(--duration);
+}
+.chat-agent-refresh-btn:hover {
+  border-color:var(--accent); background:var(--accent-glow);
+  transform:rotate(90deg);
+}
+
 .chat-agent-picker h3 { margin-bottom:var(--space-md); font-size:16px; }
 .chat-agent-picker-list { display:flex; flex-direction:column; gap:var(--space-sm); }
 .chat-agent-picker-item {
