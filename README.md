@@ -1,6 +1,6 @@
 # 🛠️ DevPilot 开发环境与技术规范
 
-> 最后更新: 2026-02-21
+> 最后更新: 2026-02-22
 
 ## 1. 代码仓库
 
@@ -14,7 +14,7 @@
 | 前端 | HTML + CSS + Vanilla JS |
 | 数据库 | PostgreSQL |
 | 认证 | JWT (RS256) |
-| AI 能力 | ClawAPI (OpenClaw) |
+| AI 能力 | AI Gateway (https://oc.xbot.cool) |
 
 ## 3. 目录结构
 
@@ -41,8 +41,7 @@ p.xbot.cool:443 (Nginx)
   ├── /projects/* → Auth Service
   └── /ai/*      → Auth Service
 
-oc.xbot.cool:6666 → ClawAPI (AI 能力)
-oc.xbot.cool:8888 → OpenClaw Gateway
+oc.xbot.cool → AI Gateway (外部 AI 服务)
 ```
 
 ## 5. 本地开发
@@ -69,8 +68,8 @@ pip install fastapi uvicorn sqlalchemy asyncpg pydantic PyJWT bcrypt structlog s
 AUTH_DATABASE_URL=postgresql+asyncpg://devpilot:devpilot123@localhost/devpilot
 JWT_PRIVATE_KEY_FILE=./keys/jwt_private.pem
 JWT_PUBLIC_KEY_FILE=./keys/jwt_public.pem
-CLAWAPI_URL=https://oc.xbot.cool:6666
-CLAWAPI_KEY=your-api-key
+AI_GATEWAY_URL=https://oc.xbot.cool
+AI_GATEWAY_KEY=your-api-key
 ```
 
 ### 5.5 启动服务

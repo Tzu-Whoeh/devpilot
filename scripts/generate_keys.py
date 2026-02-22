@@ -6,7 +6,7 @@ Usage:
 
 Outputs:
     {output_dir}/jwt_private.pem   — Auth Service (keep secret)
-    {output_dir}/jwt_public.pem    — ClawAPI (safe to distribute)
+    {output_dir}/jwt_public.pem    — AI Gateway (safe to distribute)
 """
 
 import sys

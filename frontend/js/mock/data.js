@@ -52,8 +52,8 @@ const MOCK_AI_OUTPUTS = {
   },
   '架构设计': {
     title: '架构设计文档 (ADD)',
-    summary: '采用前后端分离架构，后端使用 FastAPI + PostgreSQL，前端 Vanilla JS SPA。通过 Nginx 反向代理统一入口。AI 能力由 ClawAPI 提供，PCC Core 负责业务编排。',
-    content: '# 架构设计文档\n\n## 技术选型\n- **后端**: FastAPI + SQLAlchemy + PostgreSQL\n- **前端**: Vanilla JS SPA\n- **AI服务**: ClawAPI (MCP)\n- **认证**: JWT RS256\n\n## 部署架构\nNginx :8888 → Auth :16001 / PCC :16003 / ClawAPI :16002'
+    summary: '采用前后端分离架构，后端使用 FastAPI + PostgreSQL，前端 Vanilla JS SPA。通过 Nginx 反向代理统一入口。AI 能力由 AI Gateway 提供，PCC Core 负责业务编排。',
+    content: '# 架构设计文档\n\n## 技术选型\n- **后端**: FastAPI + SQLAlchemy + PostgreSQL\n- **前端**: Vanilla JS SPA\n- **AI服务**: AI Gateway (MCP)\n- **认证**: JWT RS256\n\n## 部署架构\nNginx :8888 → Auth :16001 / PCC :16003 / AI Gateway :16002'
   },
   '选题策划': {
     title: '短视频选题方案',

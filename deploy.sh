@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════════
 #  DevPilot — 前端 + Auth 服务部署
 #
-#  前提: ClawAPI 已部署并获取 API Key
+#  前提: AI Gateway 已部署并获取 API Key
 #
 #  用法: sudo bash deploy.sh
 # ═══════════════════════════════════════════════════════════
@@ -74,7 +74,7 @@ if [ ! -f "$ENV_FILE" ]; then
     sed -i "s|JWT_PRIVATE_KEY_FILE=.*|JWT_PRIVATE_KEY_FILE=$PRIV_KEY|" "$ENV_FILE"
     sed -i "s|JWT_PUBLIC_KEY_FILE=.*|JWT_PUBLIC_KEY_FILE=$PUB_KEY|" "$ENV_FILE"
     ok "已生成 $ENV_FILE"
-    warn ">>> 请编辑 $ENV_FILE 设置 CLAWAPI_KEY <<<"
+    warn ">>> 请编辑 $ENV_FILE 设置 AI_GATEWAY_KEY <<<"
 else
     ok ".env 已存在"
 fi
@@ -150,11 +150,11 @@ echo "  Auth配置:  $INSTALL_DIR/auth/.env"
 echo ""
 echo "  接下来:"
 echo ""
-echo "    1. 确保 ClawAPI 已运行，获取 API Key"
+echo "    1. 确保 AI Gateway 已运行，获取 API Key"
 echo ""
 echo "    2. 编辑配置:"
 echo "       vi $INSTALL_DIR/auth/.env"
-echo "       # 设置 CLAWAPI_KEY=sk-xxx"
+echo "       # 设置 AI_GATEWAY_KEY=sk-xxx"
 echo ""
 echo "    3. 启动 Auth Service:"
 echo "       systemctl start devpilot-auth"
@@ -166,5 +166,5 @@ echo "  架构:"
 echo "    浏览器 → Nginx:8888"
 echo "            ├── /         → 前端"
 echo "            ├── /auth/*   → Auth (JWT登录)"
-echo "            └── /chat/*   → Auth (验JWT→注入APIKey→ClawAPI)"
+echo "            └── /chat/*   → Auth (验JWT→注入APIKey→AI Gateway)"
 echo ""

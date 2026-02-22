@@ -152,21 +152,21 @@ const SettingsPage = {
       <div class="setting-row">
         <div class="setting-info">
           <h4>AI Gateway 地址</h4>
-          <p>ClawAPI 服务器地址（后端代理目标）</p>
+          <p>AI Gateway 服务器地址（后端代理目标）</p>
         </div>
         <div>
-          <input class="input" id="aiConfigUrl" style="width:300px" value="${_esc(c.clawapi_url || '')}"
-            placeholder="http://127.0.0.1:16002">
+          <input class="input" id="aiConfigUrl" style="width:300px" value="${_esc(c.ai_gateway_url || '')}"
+            placeholder="https://oc.xbot.cool">
         </div>
       </div>
       <div class="setting-row">
         <div class="setting-info">
           <h4>API Key</h4>
-          <p>ClawAPI 认证密钥 ${c.clawapi_key_set ? `<span style="color:var(--success)">（已配置: ${_esc(c.clawapi_key_preview)}）</span>` : '<span style="color:var(--warning)">（未配置）</span>'}</p>
+          <p>AI Gateway 认证密钥 ${c.ai_gateway_key_set ? `<span style="color:var(--success)">（已配置: ${_esc(c.ai_gateway_key_preview)}）</span>` : '<span style="color:var(--warning)">（未配置）</span>'}</p>
         </div>
         <div>
           <input class="input" id="aiConfigKey" type="password" style="width:300px" value=""
-            placeholder="${c.clawapi_key_set ? '留空保持不变，输入新值覆盖' : '输入 API Key'}">
+            placeholder="${c.ai_gateway_key_set ? '留空保持不变，输入新值覆盖' : '输入 API Key'}">
         </div>
       </div>
       <div class="setting-row" style="justify-content:flex-end;gap:var(--space-sm)">
@@ -183,8 +183,8 @@ const SettingsPage = {
     const btn = document.getElementById('aiSaveBtn');
 
     const data = {};
-    if (url !== undefined) data.clawapi_url = url;
-    if (key) data.clawapi_key = key;
+    if (url !== undefined) data.ai_gateway_url = url;
+    if (key) data.ai_gateway_key = key;
 
     if (!Object.keys(data).length) { Shell.toast('没有更改', 'info'); return; }
 
@@ -193,9 +193,9 @@ const SettingsPage = {
       const result = await API.updateAIConfig(data);
       Shell.toast(
         result.changed?.length
-          ? `已更新: ${result.changed.join(', ')}${result.clawapi_connected ? '' : ' (连接失败，请检查配置)'}`
+          ? `已更新: ${result.changed.join(', ')}${result.ai_gateway_connected ? '' : ' (连接失败，请检查配置)'}`
           : '配置未变更',
-        result.clawapi_connected ? 'success' : 'warning'
+        result.ai_gateway_connected ? 'success' : 'warning'
       );
       this._loadAIConfig();
     } catch (e) {
@@ -222,7 +222,7 @@ const SettingsPage = {
           <span>${r.agents_ok ? r.agents?.join(', ') || 'OK' : _esc(r.agents_error || 'HTTP ' + r.agents_status)}</span>
         </div>`;
       }
-      if (!r.clawapi_key_set) {
+      if (!r.ai_gateway_key_set) {
         html += `<div class="ai-test-row err"><span>⚠️ API Key 未配置</span><span>Agent 无法调用</span></div>`;
       }
       html += '</div>';

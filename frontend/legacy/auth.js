@@ -52,12 +52,12 @@ async function doRegister(e) {
 
 function saveSession(expiresAt) {
   const exp = expiresAt ? new Date(expiresAt).getTime() : Date.now() + 86400000;
-  localStorage.setItem('claw_session', JSON.stringify({token, user: currentUser, exp, baseUrl: baseUrl()}));
+  localStorage.setItem('dp_session', JSON.stringify({token, user: currentUser, exp, baseUrl: baseUrl()}));
 }
 
 function doLogout() {
   token = ''; currentUser = null; currentSession = '';
-  localStorage.removeItem('claw_session');
+  localStorage.removeItem('dp_session');
   $('chatScreen').classList.remove('active');
   $('chatScreen').style.display = 'none';
   $('authScreen').style.display = '';

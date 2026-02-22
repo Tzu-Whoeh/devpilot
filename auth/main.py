@@ -1,8 +1,8 @@
 """DevPilot Auth Service — Authentication + Chat API Proxy.
 
-v0.3.0:
+v0.4.0:
 - User authentication (register/login/JWT)
-- /chat/* proxy: validates JWT, injects API Key, forwards to ClawAPI
+- /chat/* proxy: validates JWT, injects API Key, forwards to AI Gateway
 - API Key never exposed to frontend
 """
 
@@ -65,9 +65,14 @@ DEBUG = os.getenv("AUTH_DEBUG", "false").lower() == "true"
 ADMIN_USERNAME = os.getenv("AUTH_ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("AUTH_ADMIN_PASSWORD", "")
 
-# ClawAPI connection (for /chat/* proxy)
-CLAWAPI_URL = os.getenv("CLAWAPI_URL", "http://127.0.0.1:16002")
-CLAWAPI_KEY = os.getenv("CLAWAPI_KEY", "")  # API Key — server-side only
+# AI Gateway connection (for /chat/* proxy)
+# Fallback: read legacy CLAWAPI_* vars if new ones not set (migration support)
+AI_GATEWAY_URL = os.getenv("AI_GATEWAY_URL") or os.getenv("AI_GATEWAY_URL", "https://oc.xbot.cool")
+AI_GATEWAY_KEY = os.getenv("AI_GATEWAY_KEY") or os.getenv("AI_GATEWAY_KEY", "")  # API Key — server-side only
+if not os.getenv("AI_GATEWAY_URL") and os.getenv("AI_GATEWAY_URL"):
+    logger.warning("config_migration", msg="AI_GATEWAY_URL is deprecated, please rename to AI_GATEWAY_URL in .env")
+if not os.getenv("AI_GATEWAY_KEY") and os.getenv("AI_GATEWAY_KEY"):
+    logger.warning("config_migration", msg="AI_GATEWAY_KEY is deprecated, please rename to AI_GATEWAY_KEY in .env")
 
 # Legacy HS256 fallback
 JWT_SECRET = os.getenv("JWT_SECRET", "")
@@ -381,14 +386,14 @@ async def lifespan(app: FastAPI):
 
     # Init proxy HTTP client
     _http_client = httpx.AsyncClient(
-        base_url=CLAWAPI_URL,
+        base_url=AI_GATEWAY_URL,
         timeout=httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0),
     )
 
-    if CLAWAPI_KEY:
-        logger.info("chat_proxy_configured", clawapi_url=CLAWAPI_URL, key_prefix=CLAWAPI_KEY[:7] + "...")
+    if AI_GATEWAY_KEY:
+        logger.info("chat_proxy_configured", ai_gateway_url=AI_GATEWAY_URL, key_prefix=AI_GATEWAY_KEY[:7] + "...")
     else:
-        logger.warning("chat_proxy_no_key", msg="CLAWAPI_KEY not set — /chat/* proxy will fail")
+        logger.warning("chat_proxy_no_key", msg="AI_GATEWAY_KEY not set — /chat/* proxy will fail")
 
     logger.info("devpilot_auth_started", port=PORT)
     yield
@@ -399,8 +404,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="DevPilot Auth + Chat Proxy",
-    description="Authentication Service + Chat API Gateway",
-    version="0.3.0",
+    description="Authentication Service + AI Gateway Chat Proxy",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -498,12 +503,12 @@ async def public_key_pem():
 
 
 # ---------------------------------------------------------------------------
-# Routes — Chat Proxy (/chat/* → ClawAPI with API Key injection)
+# Routes — Chat Proxy (/chat/* → AI Gateway with API Key injection)
 #
-# Flow:  Frontend → JWT → Auth verifies → forward to ClawAPI with X-API-Key
+# Flow:  Frontend → JWT → Auth verifies → forward to AI Gateway with X-API-Key
 #        API Key is server-side only, never exposed to the browser.
 #
-# Path mapping: /chat/{path} → ClawAPI /v1/{path}
+# Path mapping: /chat/{path} → AI Gateway /v1/{path}
 #   /chat/agents                → /v1/agents
 #   /chat/chat/completions      → /v1/chat/completions
 #   /chat/responses             → /v1/responses
@@ -512,22 +517,22 @@ async def public_key_pem():
 @app.api_route("/chat/{path:path}", methods=["GET", "POST", "PUT", "DELETE"],
                summary="Chat API proxy (JWT → API Key)")
 async def chat_proxy(request: Request, path: str):
-    """Proxy /chat/* to ClawAPI's /v1/*.
+    """Proxy /chat/* to AI Gateway's /v1/*.
 
-    Mapping: /chat/{path} → ClawAPI /v1/{path}
+    Mapping: /chat/{path} → AI Gateway /v1/{path}
 
     1. Verify user JWT
     2. Strip user's Authorization header
     3. Inject X-API-Key (server-side secret)
-    4. Forward request to ClawAPI
+    4. Forward request to AI Gateway
     5. Stream response back to user
     """
     # 1. Verify JWT
     jwt_payload = _verify_jwt_only(request)
     username = jwt_payload.get("username", "unknown")
 
-    if not CLAWAPI_KEY:
-        raise AuthError(503, "PROXY_ERROR", "ClawAPI key not configured")
+    if not AI_GATEWAY_KEY:
+        raise AuthError(503, "PROXY_ERROR", "AI Gateway key not configured")
 
     # 2. Build upstream URL: /chat/{path} → /v1/{path}
     target_path = f"/v1/{path}"
@@ -537,7 +542,7 @@ async def chat_proxy(request: Request, path: str):
 
     # 3. Build headers — inject API Key (Authorization: Bearer per gateway docs)
     headers = {
-        "Authorization": f"Bearer {CLAWAPI_KEY}",
+        "Authorization": f"Bearer {AI_GATEWAY_KEY}",
         "X-Forwarded-User": username,
         "X-Forwarded-User-Id": jwt_payload.get("sub", ""),
         "Content-Type": request.headers.get("Content-Type", "application/json"),
@@ -568,20 +573,20 @@ async def chat_proxy(request: Request, path: str):
         else:
             return await _proxy_json(request.method, target_path, headers, body)
     except httpx.ConnectError:
-        raise AuthError(502, "PROXY_ERROR", "Cannot connect to ClawAPI")
+        raise AuthError(502, "PROXY_ERROR", "Cannot connect to AI Gateway")
     except httpx.TimeoutException:
-        raise AuthError(504, "PROXY_TIMEOUT", "ClawAPI request timed out")
+        raise AuthError(504, "PROXY_TIMEOUT", "AI Gateway request timed out")
     except Exception as e:
         logger.error("chat_proxy_error", error=str(e), path=path, user=username)
         raise AuthError(502, "PROXY_ERROR", f"Proxy error: {str(e)}")
 
 
 async def _proxy_json(method: str, path: str, headers: dict, body: bytes) -> JSONResponse:
-    """Forward a regular JSON request to ClawAPI."""
+    """Forward a regular JSON request to AI Gateway."""
     resp = await _http_client.request(
         method=method, url=path, headers=headers, content=body,
     )
-    # Pass through ClawAPI's response
+    # Pass through AI Gateway's response
     return JSONResponse(
         status_code=resp.status_code,
         content=resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"raw": resp.text},
@@ -590,7 +595,7 @@ async def _proxy_json(method: str, path: str, headers: dict, body: bytes) -> JSO
 
 
 async def _proxy_stream(method: str, path: str, headers: dict, body: bytes, username: str) -> StreamingResponse:
-    """Forward an SSE streaming request to ClawAPI — raw byte passthrough."""
+    """Forward an SSE streaming request to AI Gateway — raw byte passthrough."""
     req = _http_client.build_request(
         method=method, url=path, headers=headers, content=body,
     )
@@ -725,7 +730,7 @@ async def ai_chat(req: ChatRequest, user: User = Depends(get_current_user), db: 
     
     try:
         r = await _http_client.post('/v1/chat/completions',
-            headers={'Authorization': f'Bearer {CLAWAPI_KEY}'},
+            headers={'Authorization': f'Bearer {AI_GATEWAY_KEY}'},
             json={'model': 'default', 'message': prompt + ' User: ' + req.message},
             timeout=120.0)
         if r.status_code != 200:
@@ -776,20 +781,20 @@ async def health(db: AsyncSession = Depends(get_db)):
     except Exception:
         db_ok = False
 
-    clawapi_ok = False
+    ai_gateway_ok = False
     try:
         resp = await _http_client.get("/v1/health", timeout=5.0)
-        clawapi_ok = resp.status_code == 200
+        ai_gateway_ok = resp.status_code == 200
     except Exception:
         pass
 
     return {
         "status": "healthy" if db_ok else "unhealthy",
         "service": "devpilot-auth",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "jwt_algorithm": JWT_ALGORITHM,
-        "clawapi_connected": clawapi_ok,
-        "clawapi_url": CLAWAPI_URL,
+        "ai_gateway_connected": ai_gateway_ok,
+        "ai_gateway_url": AI_GATEWAY_URL,
     }
 
 
@@ -806,65 +811,65 @@ def _require_admin(request: Request) -> dict:
 
 
 class AIConfigUpdate(BaseModel):
-    clawapi_url: str | None = None
-    clawapi_key: str | None = None
+    ai_gateway_url: str | None = None
+    ai_gateway_key: str | None = None
 
 
 @app.get("/admin/ai-config", summary="Get AI config (admin only)")
 async def get_ai_config(request: Request):
     _require_admin(request)
     return {
-        "clawapi_url": CLAWAPI_URL,
-        "clawapi_key_set": bool(CLAWAPI_KEY),
-        "clawapi_key_preview": (CLAWAPI_KEY[:4] + "..." + CLAWAPI_KEY[-4:]) if len(CLAWAPI_KEY) > 8 else ("***" if CLAWAPI_KEY else ""),
+        "ai_gateway_url": AI_GATEWAY_URL,
+        "ai_gateway_key_set": bool(AI_GATEWAY_KEY),
+        "ai_gateway_key_preview": (AI_GATEWAY_KEY[:4] + "..." + AI_GATEWAY_KEY[-4:]) if len(AI_GATEWAY_KEY) > 8 else ("***" if AI_GATEWAY_KEY else ""),
     }
 
 
 @app.put("/admin/ai-config", summary="Update AI config (admin only)")
 async def update_ai_config(body: AIConfigUpdate, request: Request):
-    global CLAWAPI_URL, CLAWAPI_KEY, _http_client
+    global AI_GATEWAY_URL, AI_GATEWAY_KEY, _http_client
     _require_admin(request)
 
     changed = []
 
-    if body.clawapi_url is not None and body.clawapi_url != CLAWAPI_URL:
-        CLAWAPI_URL = body.clawapi_url.rstrip("/")
+    if body.ai_gateway_url is not None and body.ai_gateway_url != AI_GATEWAY_URL:
+        AI_GATEWAY_URL = body.ai_gateway_url.rstrip("/")
         # Recreate httpx client with new base_url
         if _http_client:
             await _http_client.aclose()
         _http_client = httpx.AsyncClient(
-            base_url=CLAWAPI_URL,
+            base_url=AI_GATEWAY_URL,
             timeout=httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0),
         )
-        logger.info("admin_update_clawapi_url", new_url=CLAWAPI_URL)
-        changed.append("clawapi_url")
+        logger.info("admin_update_ai_gateway_url", new_url=AI_GATEWAY_URL)
+        changed.append("ai_gateway_url")
 
-    if body.clawapi_key is not None and body.clawapi_key != CLAWAPI_KEY:
-        CLAWAPI_KEY = body.clawapi_key
-        logger.info("admin_update_clawapi_key", key_prefix=CLAWAPI_KEY[:4] + "..." if CLAWAPI_KEY else "(empty)")
-        changed.append("clawapi_key")
+    if body.ai_gateway_key is not None and body.ai_gateway_key != AI_GATEWAY_KEY:
+        AI_GATEWAY_KEY = body.ai_gateway_key
+        logger.info("admin_update_ai_gateway_key", key_prefix=AI_GATEWAY_KEY[:4] + "..." if AI_GATEWAY_KEY else "(empty)")
+        changed.append("ai_gateway_key")
 
     # Test connectivity
-    clawapi_ok = False
+    ai_gateway_ok = False
     try:
         resp = await _http_client.get("/v1/health", timeout=5.0)
-        clawapi_ok = resp.status_code == 200
+        ai_gateway_ok = resp.status_code == 200
     except Exception:
         pass
 
     return {
         "ok": True,
         "changed": changed,
-        "clawapi_url": CLAWAPI_URL,
-        "clawapi_key_set": bool(CLAWAPI_KEY),
-        "clawapi_connected": clawapi_ok,
+        "ai_gateway_url": AI_GATEWAY_URL,
+        "ai_gateway_key_set": bool(AI_GATEWAY_KEY),
+        "ai_gateway_connected": ai_gateway_ok,
     }
 
 
 @app.post("/admin/ai-config/test", summary="Test AI connection (admin only)")
 async def test_ai_config(request: Request):
     _require_admin(request)
-    result = {"clawapi_url": CLAWAPI_URL, "clawapi_key_set": bool(CLAWAPI_KEY)}
+    result = {"ai_gateway_url": AI_GATEWAY_URL, "ai_gateway_key_set": bool(AI_GATEWAY_KEY)}
 
     # Test health
     try:
@@ -876,9 +881,9 @@ async def test_ai_config(request: Request):
         result["health_error"] = str(e)
 
     # Test agents endpoint
-    if CLAWAPI_KEY:
+    if AI_GATEWAY_KEY:
         try:
-            resp = await _http_client.get("/v1/agents", headers={"Authorization": f"Bearer {CLAWAPI_KEY}"}, timeout=5.0)
+            resp = await _http_client.get("/v1/agents", headers={"Authorization": f"Bearer {AI_GATEWAY_KEY}"}, timeout=5.0)
             result["agents_status"] = resp.status_code
             result["agents_ok"] = resp.status_code == 200
             if resp.status_code == 200:

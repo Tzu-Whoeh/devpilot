@@ -1,13 +1,15 @@
 #!/bin/bash
 # =============================================================================
-# DevPilot & ClawAPI Service Installer
+# DevPilot Service Installer
 #
 # Usage:
-#   bash install-services.sh                Install and start both
-#   bash install-services.sh clawapi        Install ClawAPI only
-#   bash install-services.sh devpilot       Install DevPilot Auth only
-#   bash install-services.sh remove         Remove both services
-#   bash install-services.sh status         Check status
+#   bash install_service.sh              Install and start DevPilot Auth
+#   bash install_service.sh install      Install and start DevPilot Auth
+#   bash install_service.sh remove       Remove service
+#   bash install_service.sh status       Check status
+#
+# Note: AI Gateway is now an external service (https://oc.xbot.cool).
+#       The local clawapi service is no longer needed.
 # =============================================================================
 
 set -e
@@ -24,65 +26,6 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 header(){ echo -e "\n${CYAN}=== $* ===${NC}"; }
 
 [ "$(id -u)" -eq 0 ] || error "Run as root"
-
-# ---------------------------------------------------------------------------
-# ClawAPI
-# ---------------------------------------------------------------------------
-
-CLAW_DIR="/opt/clawapi"
-CLAW_SERVICE="clawapi"
-
-install_clawapi() {
-    header "Installing ClawAPI service"
-
-    [ -d "$CLAW_DIR" ] || error "$CLAW_DIR not found"
-    [ -f "$CLAW_DIR/.env" ] || error "$CLAW_DIR/.env not found"
-    [ -f "$CLAW_DIR/.venv/bin/uvicorn" ] || error "$CLAW_DIR/.venv/bin/uvicorn not found"
-
-    CLAW_PORT=$(grep -E "^CLAW_PORT=" "$CLAW_DIR/.env" 2>/dev/null | cut -d= -f2 | tr -d ' "'"'" || true)
-    [ -z "$CLAW_PORT" ] && CLAW_PORT=16002
-
-    cat > /etc/systemd/system/${CLAW_SERVICE}.service << EOF
-[Unit]
-Description=ClawAPI Service
-After=network.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=${CLAW_DIR}
-EnvironmentFile=${CLAW_DIR}/.env
-ExecStart=${CLAW_DIR}/.venv/bin/uvicorn clawapi.main:app --host 0.0.0.0 --port ${CLAW_PORT} --log-level info
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=${CLAW_SERVICE}
-
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=${CLAW_DIR}/data /root/.openclaw
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Kill existing process on port
-    PID=$(lsof -ti :"$CLAW_PORT" 2>/dev/null || true)
-    [ -n "$PID" ] && { warn "Killing process on port $CLAW_PORT (PID: $PID)"; kill "$PID" 2>/dev/null || true; sleep 1; }
-
-    systemctl daemon-reload
-    systemctl enable "$CLAW_SERVICE"
-    systemctl start "$CLAW_SERVICE"
-    sleep 2
-
-    if systemctl is-active --quiet "$CLAW_SERVICE"; then
-        info "ClawAPI started on port ${CLAW_PORT}"
-    else
-        warn "ClawAPI failed to start. Check: journalctl -u ${CLAW_SERVICE} -n 20"
-    fi
-}
 
 # ---------------------------------------------------------------------------
 # DevPilot Auth
@@ -164,6 +107,12 @@ EOF
     else
         warn "DevPilot Auth failed to start. Check: journalctl -u ${DP_SERVICE} -n 20"
     fi
+
+    # Check for legacy clawapi service and warn
+    if [ -f "/etc/systemd/system/clawapi.service" ]; then
+        warn "Legacy clawapi.service detected. AI Gateway is now external."
+        warn "To remove: systemctl disable clawapi && systemctl stop clawapi && rm /etc/systemd/system/clawapi.service"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -172,7 +121,7 @@ EOF
 
 do_remove() {
     header "Removing services"
-    for svc in "$CLAW_SERVICE" "$DP_SERVICE"; do
+    for svc in "$DP_SERVICE"; do
         if [ -f "/etc/systemd/system/${svc}.service" ]; then
             systemctl stop "$svc" 2>/dev/null || true
             systemctl disable "$svc" 2>/dev/null || true
@@ -190,7 +139,7 @@ do_remove() {
 do_status() {
     header "Service Status"
     echo ""
-    for svc in "$CLAW_SERVICE" "$DP_SERVICE"; do
+    for svc in "$DP_SERVICE"; do
         if [ -f "/etc/systemd/system/${svc}.service" ]; then
             STATUS=$(systemctl is-active "$svc" 2>/dev/null || echo "inactive")
             ENABLED=$(systemctl is-enabled "$svc" 2>/dev/null || echo "disabled")
@@ -205,10 +154,10 @@ do_status() {
     done
     echo ""
     echo "Commands:"
-    echo "  journalctl -u clawapi -f        # ClawAPI logs"
     echo "  journalctl -u devpilot-auth -f   # Auth logs"
-    echo "  systemctl restart clawapi        # Restart ClawAPI"
-    echo "  systemctl restart devpilot-auth  # Restart Auth"
+    echo "  systemctl restart devpilot-auth   # Restart Auth"
+    echo ""
+    echo "AI Gateway: https://oc.xbot.cool (external service, no local management needed)"
     echo ""
 }
 
@@ -216,18 +165,16 @@ do_status() {
 # Main
 # ---------------------------------------------------------------------------
 
-case "${1:-all}" in
-    all)
-        install_clawapi
+case "${1:-install}" in
+    all|install)
         install_devpilot
         echo ""
         do_status
         ;;
-    clawapi)    install_clawapi ;;
     devpilot)   install_devpilot ;;
     remove)     do_remove ;;
     status)     do_status ;;
     *)
-        echo "Usage: bash $0 [all|clawapi|devpilot|remove|status]"
+        echo "Usage: bash $0 [install|remove|status]"
         ;;
 esac

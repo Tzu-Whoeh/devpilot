@@ -13,7 +13,7 @@
 
 - **Auth Service** (:16001) — SQLite + FastAPI
 - **PCC Core** (:16003) — PostgreSQL + FastAPI (Phase 1 开发中)
-- **ClawAPI** (:16002) — AI 服务 (外部仓库)
+- **AI Gateway** (:16002) — AI 服务 (外部仓库)
 - **Frontend** — Vanilla JS SPA
 
 ## 目录结构规范

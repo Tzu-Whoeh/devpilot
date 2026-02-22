@@ -1,6 +1,6 @@
 // ═══════════════════ BOOT ═══════════════════
 (function boot() {
-  const saved = localStorage.getItem('claw_session');
+  const saved = localStorage.getItem('dp_session');
   if (saved) {
     try {
       const s = JSON.parse(saved);
@@ -10,6 +10,6 @@
         enterChat(); return;
       }
     } catch(e) { console.error('[Boot] restore failed:', e); }
-    localStorage.removeItem('claw_session');
+    localStorage.removeItem('dp_session');
   }
 })();
