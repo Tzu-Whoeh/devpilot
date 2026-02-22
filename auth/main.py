@@ -566,23 +566,21 @@ async def chat_proxy(request: Request, path: str):
     jwt_payload = _verify_jwt_only(request)
     username = jwt_payload.get("username", "unknown")
 
-    if not AI_GATEWAY_KEY:
-        raise AuthError(503, "PROXY_ERROR", "AI Gateway key not configured")
-
     # 2. Build upstream URL: /chat/{path} → /v1/{path}
     target_path = f"/v1/{path}"
     query = str(request.url.query)
     if query:
         target_path += f"?{query}"
 
-    # 3. Build headers — inject API Key (Authorization: Bearer per gateway docs)
+    # 3. Build headers — inject API Key if configured (Authorization: Bearer per gateway docs)
     headers = {
-        "Authorization": f"Bearer {AI_GATEWAY_KEY}",
         "X-Forwarded-User": username,
         "X-Forwarded-User-Id": jwt_payload.get("sub", ""),
         "Content-Type": request.headers.get("Content-Type", "application/json"),
         "Accept": request.headers.get("Accept", "*/*"),
     }
+    if AI_GATEWAY_KEY:
+        headers["Authorization"] = f"Bearer {AI_GATEWAY_KEY}"
     # Forward Last-Event-ID for SSE reconnection
     lei = request.headers.get("Last-Event-ID")
     if lei:

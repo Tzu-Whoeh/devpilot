@@ -1,4 +1,6 @@
-/* ═══ New Project Wizard ═══ */
+/* ═══ New Project Wizard v3.0 ═══ */
+
+/* ── Wizard Shell ── */
 .wizard { max-width:800px; margin:0 auto; }
 .wizard-progress { display:flex; align-items:center; justify-content:center; gap:var(--space-sm); margin-bottom:var(--space-2xl); }
 .wiz-step {
@@ -20,30 +22,303 @@
 .wiz-title { font-size:24px; font-weight:600; text-align:center; margin-bottom:var(--space-sm); }
 .wiz-subtitle { text-align:center; color:var(--text-secondary); font-size:14px; margin-bottom:var(--space-xl); }
 
-/* Step 2: Phase Timeline */
-.phase-timeline { position:relative; padding-left:32px; margin-bottom:var(--space-xl); }
-.phase-timeline::before {
-  content:''; position:absolute; left:11px; top:12px; bottom:12px;
-  width:2px; background:var(--border);
-}
-.pt-item {
-  position:relative; padding:var(--space-md) 0; display:flex; align-items:flex-start; gap:var(--space-md);
-}
-.pt-dot {
-  position:absolute; left:-32px; top:18px; width:22px; height:22px;
-  border-radius:50%; border:2px solid var(--border-light); background:var(--bg-card);
-  display:flex; align-items:center; justify-content:center; font-size:11px; z-index:1;
-}
-.pt-content { flex:1; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-md); }
-.pt-content:hover { border-color:var(--border-light); }
-.pt-header { display:flex; align-items:center; gap:var(--space-sm); margin-bottom:4px; }
-.pt-name { font-weight:600; font-size:15px; }
-.pt-role { font-size:12px; color:var(--accent); background:var(--accent-glow); padding:2px 8px; border-radius:var(--radius-full); }
-.pt-desc { font-size:13px; color:var(--text-secondary); line-height:1.5; }
-.pt-detail { font-size:12px; color:var(--text-dim); margin-top:6px; }
-
-/* Step 3: Naming */
+/* Step 2: Naming (was Step 3) */
 .wiz-form { max-width:480px; margin:0 auto; }
 .wiz-form .field { margin-bottom:var(--space-lg); }
-
 .wiz-actions { display:flex; justify-content:center; gap:var(--space-md); margin-top:var(--space-xl); }
+
+/* ═══ Interview Phase ═══ */
+
+/* ── Interview Container ── */
+.interview-container {
+  max-width:900px; margin:0 auto;
+  display:flex; flex-direction:column;
+  height:calc(100vh - var(--topbar-h) - 48px);
+}
+
+/* ── Phase Progress Bar ── */
+.interview-progress {
+  display:flex; align-items:center; justify-content:center;
+  gap:var(--space-xs); padding:var(--space-md) 0;
+  border-bottom:1px solid var(--border);
+  margin-bottom:var(--space-md); flex-shrink:0;
+}
+.ip-step {
+  display:flex; align-items:center; gap:6px;
+  font-size:13px; color:var(--text-muted);
+  transition:color var(--duration);
+}
+.ip-step.active { color:var(--accent); font-weight:600; }
+.ip-step.done { color:var(--success); }
+.ip-dot {
+  width:32px; height:32px; border-radius:50%; border:2px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:14px;
+  transition:all var(--duration);
+}
+.ip-step.active .ip-dot { border-color:var(--accent); background:var(--accent-glow); }
+.ip-step.done .ip-dot { border-color:var(--success); background:var(--success-bg); color:var(--success); font-size:12px; }
+.ip-line { width:32px; height:2px; background:var(--border); }
+.ip-step.done+.ip-line, .ip-step.done ~ .ip-line { background:var(--success); }
+
+/* ── Interview Header ── */
+.interview-header {
+  display:flex; align-items:center; gap:var(--space-md);
+  padding:var(--space-md); background:var(--bg-card);
+  border:1px solid var(--border); border-radius:var(--radius);
+  margin-bottom:var(--space-md); flex-shrink:0;
+}
+.interview-header-icon { font-size:32px; }
+.interview-header-title { font-size:18px; font-weight:600; }
+.interview-header-sub { font-size:13px; color:var(--text-secondary); margin-top:2px; }
+
+/* ── Interview Messages ── */
+.interview-messages {
+  flex:1; overflow-y:auto; padding:var(--space-md) 0;
+  display:flex; flex-direction:column; gap:var(--space-md);
+}
+
+.interview-msg {
+  display:flex; gap:var(--space-sm); max-width:85%;
+  animation:msgFadeIn 0.3s var(--ease);
+}
+.interview-msg.user { align-self:flex-end; flex-direction:row-reverse; }
+.interview-msg.ai { align-self:flex-start; }
+
+.interview-msg-avatar {
+  width:36px; height:36px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; flex-shrink:0;
+  background:var(--bg-card); border:1px solid var(--border);
+}
+
+.interview-msg-body {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:var(--space-sm) var(--space-md);
+  min-width:80px;
+}
+.interview-msg.user .interview-msg-body {
+  background:var(--accent-glow); border-color:rgba(56,189,248,0.2);
+}
+
+.interview-msg-sender {
+  font-size:11px; font-weight:600; color:var(--text-dim); margin-bottom:2px;
+}
+.interview-msg.user .interview-msg-sender { text-align:right; }
+
+.interview-msg-content {
+  font-size:14px; line-height:1.6; word-break:break-word;
+}
+.interview-msg-content h1 { font-size:16px; font-weight:700; margin:8px 0 4px; }
+.interview-msg-content h2 { font-size:15px; font-weight:600; margin:8px 0 4px; }
+.interview-msg-content h3 { font-size:14px; font-weight:600; margin:6px 0 2px; }
+.interview-msg-content code {
+  background:var(--bg-input); padding:1px 6px; border-radius:4px;
+  font-family:var(--font-mono); font-size:13px;
+}
+.interview-msg-content ul { padding-left:18px; margin:4px 0; }
+.interview-msg-content li { margin:2px 0; }
+.interview-msg-content strong { color:var(--accent); }
+
+/* Typing indicator */
+.interview-typing { align-self:flex-start; }
+.typing-dots {
+  display:flex; gap:4px; align-items:center; padding:8px 12px;
+}
+.typing-dots span {
+  width:6px; height:6px; background:var(--text-dim); border-radius:50%;
+  animation:typingBounce 1.4s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay:0.2s; }
+.typing-dots span:nth-child(3) { animation-delay:0.4s; }
+
+.typing-cursor::after {
+  content:'▊'; animation:blink 0.8s step-end infinite; color:var(--accent);
+}
+
+@keyframes typingBounce {
+  0%,60%,100% { transform:translateY(0); opacity:0.4; }
+  30% { transform:translateY(-4px); opacity:1; }
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes msgFadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Input Area ── */
+.interview-input-area {
+  flex-shrink:0; padding:var(--space-md) 0 var(--space-sm);
+  border-top:1px solid var(--border);
+  display:flex; flex-direction:column; gap:var(--space-sm);
+}
+
+.interview-input-wrap {
+  display:flex; gap:var(--space-sm); align-items:flex-end;
+}
+.interview-input {
+  flex:1; background:var(--bg-input); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px 14px; color:var(--text-primary);
+  font-family:var(--font-sans); font-size:14px; resize:none;
+  transition:border-color var(--duration);
+  max-height:120px;
+}
+.interview-input:focus { border-color:var(--accent); outline:none; }
+.interview-input:disabled { opacity:0.5; cursor:not-allowed; }
+
+.interview-send-btn {
+  background:var(--accent); color:#fff; border:none; border-radius:var(--radius);
+  padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer;
+  transition:all var(--duration); white-space:nowrap;
+}
+.interview-send-btn:hover:not(:disabled) { filter:brightness(1.1); }
+.interview-send-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+.interview-generate-btn {
+  align-self:center; background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#fff; border:none; border-radius:var(--radius-full);
+  padding:8px 24px; font-size:13px; font-weight:600; cursor:pointer;
+  transition:all var(--duration); animation:pulseGlow 2s ease-in-out infinite;
+}
+.interview-generate-btn:hover { transform:scale(1.02); filter:brightness(1.1); }
+
+@keyframes pulseGlow {
+  0%,100% { box-shadow:0 0 12px rgba(56,189,248,0.2); }
+  50% { box-shadow:0 0 24px rgba(56,189,248,0.4); }
+}
+
+/* ── Report / PRD Preview ── */
+.interview-report {
+  flex-shrink:0; margin-top:var(--space-md);
+  background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg);
+  overflow:hidden; max-height:50vh; display:flex; flex-direction:column;
+}
+.interview-report-title {
+  font-size:16px; font-weight:600; padding:var(--space-md);
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.interview-report-body {
+  padding:var(--space-md); overflow-y:auto; flex:1;
+  font-size:14px; line-height:1.7;
+}
+.interview-report-body h1 { font-size:18px; font-weight:700; margin:12px 0 6px; color:var(--accent); }
+.interview-report-body h2 { font-size:16px; font-weight:600; margin:10px 0 4px; }
+.interview-report-body h3 { font-size:15px; font-weight:600; margin:8px 0 4px; color:var(--accent-2); }
+.interview-report-body ul { padding-left:20px; margin:4px 0; }
+.interview-report-body li { margin:3px 0; }
+.interview-report-body strong { color:var(--accent); }
+.interview-report-body code {
+  background:var(--bg-input); padding:1px 6px; border-radius:4px;
+  font-family:var(--font-mono); font-size:13px;
+}
+
+.interview-report-actions {
+  display:flex; justify-content:center; gap:var(--space-md);
+  padding:var(--space-md); border-top:1px solid var(--border); flex-shrink:0;
+}
+
+/* ═══ PRD Review Phase ═══ */
+.review-content {
+  flex:1; overflow-y:auto; padding:var(--space-md) 0;
+  display:flex; flex-direction:column; gap:var(--space-lg);
+}
+
+/* PRD Preview in Review */
+.review-prd-preview {
+  background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg);
+  overflow:hidden;
+}
+.review-prd-title {
+  font-size:15px; font-weight:600; padding:var(--space-md);
+  border-bottom:1px solid var(--border); background:var(--bg-surface);
+}
+.review-prd-body {
+  padding:var(--space-md); max-height:300px; overflow-y:auto;
+  font-size:13px; line-height:1.6; color:var(--text-secondary);
+}
+.review-prd-body h1 { font-size:16px; font-weight:700; margin:8px 0 4px; color:var(--text-primary); }
+.review-prd-body h2 { font-size:15px; font-weight:600; margin:8px 0 4px; color:var(--text-primary); }
+.review-prd-body h3 { font-size:14px; font-weight:600; margin:6px 0 2px; }
+.review-prd-body strong { color:var(--accent); }
+
+/* Review Cards */
+.review-cards {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+  gap:var(--space-md);
+}
+.review-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:var(--space-md);
+  transition:border-color var(--duration);
+}
+.review-card.review-loading {
+  display:flex; flex-direction:column; gap:var(--space-sm);
+}
+.review-card.review-pass { border-left:3px solid var(--success); }
+.review-card.review-risk { border-left:3px solid var(--warning); }
+.review-card.review-need { border-left:3px solid var(--error); }
+
+.review-card-header {
+  display:flex; align-items:center; gap:var(--space-sm); margin-bottom:var(--space-sm);
+}
+.review-card-icon { font-size:24px; }
+.review-card-role { font-size:14px; font-weight:600; flex:1; }
+
+.review-conclusion-tag {
+  font-size:11px; font-weight:600; padding:3px 10px;
+  border-radius:var(--radius-full); white-space:nowrap;
+}
+.review-conclusion-tag.review-pass { background:var(--success-bg); color:var(--success); }
+.review-conclusion-tag.review-risk { background:var(--warning-bg); color:var(--warning); }
+.review-conclusion-tag.review-need { background:var(--error-bg); color:var(--error); }
+
+.review-card-summary {
+  font-size:14px; font-weight:500; margin-bottom:var(--space-sm);
+  line-height:1.5;
+}
+
+.review-card-details { display:flex; flex-direction:column; gap:4px; }
+.review-detail-item {
+  font-size:13px; color:var(--text-secondary); line-height:1.5;
+  padding-left:4px;
+}
+
+.review-card-body {
+  display:flex; align-items:center; gap:var(--space-sm);
+  padding:var(--space-lg) 0; justify-content:center;
+}
+.review-loading-text {
+  font-size:13px; color:var(--text-dim); animation:pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+/* Review Actions */
+.review-actions {
+  display:flex; justify-content:center; gap:var(--space-md);
+  padding:var(--space-lg) 0;
+}
+
+/* ── Spinner ── */
+.spinner-sm {
+  display:inline-block; width:14px; height:14px;
+  border:2px solid rgba(255,255,255,0.3);
+  border-top-color:#fff; border-radius:50%;
+  animation:spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── Button Accent ── */
+.btn-accent {
+  background:var(--gradient-1); color:#fff; border:none;
+  border-radius:var(--radius); padding:8px 20px;
+  font-size:14px; font-weight:600; cursor:pointer;
+  transition:all var(--duration);
+}
+.btn-accent:hover { filter:brightness(1.1); transform:translateY(-1px); }
+
+/* ── Mobile ── */
+@media (max-width:768px) {
+  .interview-container { height:calc(100vh - var(--topbar-h) - 24px); }
+  .interview-msg { max-width:92%; }
+  .ip-step span { display:none; }
+  .ip-line { width:20px; }
+  .review-cards { grid-template-columns:1fr; }
+  .review-prd-body { max-height:200px; }
+  .interview-report { max-height:40vh; }
+}
