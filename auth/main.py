@@ -484,41 +484,16 @@ async def public_key_pem():
 
 
 # ---------------------------------------------------------------------------
-# Routes — Chat: Agent listing (/chat/agents)
-#
-# ClawAPI's agents endpoint is at /v1/agents (not /api/v1/agents).
-# This dedicated route fetches from ClawAPI and returns to frontend.
-# Must be defined BEFORE the catch-all /chat/{path:path} proxy.
-# ---------------------------------------------------------------------------
-
-@app.get("/chat/agents", summary="List available AI agents")
-async def chat_agents(request: Request):
-    """Return available agents from ClawAPI."""
-    _verify_jwt_only(request)
-
-    # Try ClawAPI /v1/agents
-    if _http_client:
-        try:
-            headers = {}
-            if CLAWAPI_KEY:
-                headers["X-API-Key"] = CLAWAPI_KEY
-            resp = await _http_client.get("/v1/agents", headers=headers, timeout=5.0)
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception as e:
-            logger.warning("chat_agents_fetch_failed", error=str(e))
-
-    # Fallback: default agent
-    return {"agents": {
-        "main": {"name": "主 Agent", "description": "通用助手（默认）"},
-    }}
-
-
-# ---------------------------------------------------------------------------
 # Routes — Chat Proxy (/chat/* → ClawAPI with API Key injection)
 #
 # Flow:  Frontend → JWT → Auth verifies → forward to ClawAPI with X-API-Key
 #        API Key is server-side only, never exposed to the browser.
+#
+# Path mapping: /chat/{path} → ClawAPI /v1/{path}
+#   /chat/agents                → /v1/agents
+#   /chat/openai/chat/completions → /v1/openai/chat/completions
+#   /chat/responses             → /v1/responses
+#   /chat/chat/completions      → /v1/chat/completions
 # ---------------------------------------------------------------------------
 
 @app.api_route("/chat/{path:path}", methods=["GET", "POST", "PUT", "DELETE"],
