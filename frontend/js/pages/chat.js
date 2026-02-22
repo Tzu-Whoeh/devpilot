@@ -72,14 +72,9 @@ const ChatPage = {
     try {
       this._agents = await API.getAgents();
     } catch (e) {
-      this._agents = {
-        main: { name: '主 Agent', description: '通用助手（默认）' },
-        coder: { name: '编码助手', description: '阿宇 - 编程专家' },
-        pm: { name: '项目管理', description: '安然 - 项目管理' },
-        ba: { name: '业务分析', description: '小鹿 - 业务分析' },
-        architect: { name: '架构师', description: '老张 - 架构设计' },
-      };
-      console.warn('Agents fallback:', e.message);
+      this._agents = {};
+      console.error('Failed to load agents:', e.message);
+      Shell.toast('⚠️ 无法加载 Agent 列表: ' + e.message, 'error');
     }
   },
 
